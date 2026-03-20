@@ -1,0 +1,1998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="author" content="BrianKei, bk">
+    <meta name="copyright" content="Copyright 2026 BrianKei. All rights reserved.">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; media-src 'self' blob:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFC/Code Smart Attendance PWA</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 10px;
+        }
+        h1 { text-align: center; font-size: 1.4rem; color: #38bdf8; margin: 10px 0; }
+        .top-bar { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+        .top-btn {
+            padding: 10px 18px; border: none; border-radius: 8px; font-size: 0.95rem;
+            font-weight: 600; cursor: pointer; transition: transform 0.15s;
+        }
+        .top-btn:active { transform: scale(0.96); }
+        .btn-find { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; opacity: 0.5; }
+        .btn-attend { background: linear-gradient(135deg, #10b981, #059669); color: #fff; opacity: 0.5; }
+        .btn-export { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; }
+        .btn-clear { background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; }
+        .btn-upload { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: #fff; }
+        .mode-active { opacity: 1 !important; box-shadow: 0 0 12px rgba(255,255,255,0.3); }
+
+        .status-bar { text-align: center; padding: 10px; border-radius: 8px; margin-bottom: 10px; font-weight: 500; font-size: 0.9rem; transition: all 0.3s; }
+        .status-idle { background: #1e293b; border: 1px solid #334155; color: #94a3b8; }
+        .status-scanning { background: #0c4a6e; border: 1px solid #0369a1; color: #7dd3fc; animation: pulse 2s infinite; }
+        .status-success { background: #14532d; border: 1px solid #16a34a; color: #86efac; }
+        .status-error { background: #450a0a; border: 1px solid #dc2626; color: #fca5a5; }
+        .status-info { background: #1e1b4b; border: 1px solid #6366f1; color: #a5b4fc; }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.7; } }
+
+        /* Course tabs */
+        .course-tabs { display: flex; gap: 6px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+        .course-tab {
+            padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; border: 1px solid #334155; background: #1e293b; color: #94a3b8;
+            transition: all 0.2s;
+        }
+        .course-tab.active { background: #0ea5e9; color: #fff; border-color: #0ea5e9; }
+        .course-tab .delete-course {
+            margin-left: 6px; color: rgba(255,255,255,0.6); font-size: 0.8rem; cursor: pointer;
+        }
+        .course-tab .delete-course:hover { color: #fca5a5; }
+
+        .student-list { max-width: 600px; margin: 0 auto; }
+        .student-row {
+            display: flex; align-items: center; background: #1e293b; border: 1px solid #334155;
+            border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .student-row:active { background: #334155; }
+        .student-row.registered { border-left: 3px solid #10b981; }
+        .student-row.unregistered { border-left: 3px solid #64748b; }
+        .student-row.highlight { border-color: #f59e0b; background: #1c1917; animation: highlightFade 3s ease; }
+        @keyframes highlightFade { 0% { background: #422006; } 100% { background: #1e293b; } }
+        .student-row.attend-highlight { border-color: #10b981; animation: attendFade 2s ease; }
+        @keyframes attendFade { 0% { background: #052e16; } 100% { background: #1e293b; } }
+        .student-row.professor { border-left: 3px solid #f59e0b; background: #1c1917; }
+
+        .student-num { width: 28px; font-size: 0.8rem; color: #64748b; flex-shrink: 0; }
+        .student-name { flex: 1; font-weight: 500; font-size: 0.95rem; }
+        .student-status { font-size: 0.7rem; color: #64748b; text-align: right; max-width: 140px; }
+        .student-status .nfc-id { font-family: monospace; color: #fbbf24; font-size: 0.7rem; }
+        .student-status .last-seen { color: #10b981; font-size: 0.7rem; }
+
+        .btn-register-nfc {
+            display: inline-block; padding: 4px 10px; border: 2px dashed #f59e0b; border-radius: 6px;
+            background: rgba(245,158,11,0.1); color: #f59e0b; font-size: 0.75rem; font-weight: 600;
+            cursor: pointer; animation: registerPulse 2s infinite;
+        }
+        .btn-register-nfc.consented {
+            border: 2px dashed #10b981; background: rgba(16,185,129,0.1); color: #10b981;
+            animation: consentedPulse 2s infinite;
+        }
+        .nfc-registered {
+            display: inline-block; padding: 4px 10px; border: 2px solid #10b981; border-radius: 6px;
+            background: rgba(16,185,129,0.15); color: #10b981; font-size: 0.75rem; font-weight: 600;
+        }
+        @keyframes registerPulse { 0%,100% { border-color: #f59e0b; } 50% { border-color: #92400e; } }
+        @keyframes consentedPulse { 0%,100% { border-color: #10b981; } 50% { border-color: #065f46; } }
+
+        .btn-manual {
+            padding: 4px 10px; border: none; border-radius: 6px; font-size: 0.7rem; font-weight: 600;
+            cursor: pointer; background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff;
+            margin-left: 6px; flex-shrink: 0;
+        }
+        .btn-manual:active { transform: scale(0.95); }
+
+        .btn-rereg {
+            padding: 3px 8px; border: 1px solid #475569; border-radius: 5px; font-size: 0.6rem;
+            font-weight: 600; cursor: pointer; background: #334155; color: #94a3b8;
+            margin-left: 4px; flex-shrink: 0;
+        }
+        .btn-rereg:active { transform: scale(0.95); }
+
+        .btn-history {
+            padding: 3px 8px; border: 1px solid #0ea5e9; border-radius: 5px; font-size: 0.6rem;
+            font-weight: 600; cursor: pointer; background: rgba(14,165,233,0.1); color: #0ea5e9;
+            margin-left: 4px; flex-shrink: 0;
+        }
+        .btn-history:active { transform: scale(0.95); }
+
+        .history-list {
+            text-align: left; max-height: 300px; overflow-y: auto; margin: 10px 0;
+            background: #0f172a; border-radius: 8px; padding: 10px;
+        }
+        .history-list .h-date {
+            padding: 4px 0; font-size: 0.85rem; color: #e2e8f0; border-bottom: 1px solid #1e293b;
+        }
+
+        .check-mark { color: #10b981; font-weight: 700; font-size: 1.1rem; margin-left: 6px; flex-shrink: 0; }
+
+        .summary-bar {
+            text-align: center; padding: 10px; border-radius: 8px; margin-bottom: 10px; font-weight: 600;
+            font-size: 1rem; background: #1e293b; border: 1px solid #334155; color: #e2e8f0;
+            max-width: 600px; margin-left: auto; margin-right: auto;
+        }
+        .summary-bar .count-present { color: #10b981; font-size: 1.3rem; }
+        .summary-bar .count-total { color: #94a3b8; font-size: 1.3rem; }
+
+        .unsupported { background: #451a03; border: 1px solid #c2410c; color: #fdba74; padding: 16px; border-radius: 10px; text-align: center; max-width: 500px; margin: 20px auto; }
+
+        .modal-overlay {
+            display: none; position: fixed; top:0;left:0;right:0;bottom:0;
+            background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 24px;
+            max-width: 400px; width: 90%; text-align: center;
+        }
+        .modal h3 { color: #38bdf8; margin-bottom: 12px; }
+        .modal p { color: #94a3b8; margin-bottom: 16px; font-size: 0.9rem; line-height: 1.5; }
+        .modal-btn {
+            padding: 10px 24px; border: none; border-radius: 8px; font-size: 0.9rem;
+            font-weight: 600; cursor: pointer; margin: 4px;
+        }
+        .modal-cancel { background: #334155; color: #e2e8f0; }
+        .modal-confirm { background: #10b981; color: #fff; }
+        .modal-danger { background: #dc2626; color: #fff; }
+        .hidden { display: none; }
+
+        .no-courses { text-align: center; color: #64748b; padding: 60px 20px; font-size: 1.1rem; }
+
+        .btn-qr { background: linear-gradient(135deg, #ec4899, #be185d); color: #fff; opacity: 0.5; }
+
+        .qr-overlay {
+            display: none; position: fixed; top:0;left:0;right:0;bottom:0;
+            background: rgba(0,0,0,0.9); z-index: 200; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+        .qr-overlay.active { display: flex; }
+        .qr-overlay video {
+            width: 90%; max-width: 400px; border-radius: 12px; border: 3px solid #ec4899;
+        }
+        .qr-overlay .qr-label {
+            color: #fff; font-size: 1rem; font-weight: 600; margin-bottom: 12px;
+        }
+        .qr-overlay .qr-close {
+            margin-top: 16px; padding: 10px 30px; border: none; border-radius: 8px;
+            background: #dc2626; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer;
+        }
+
+        .remark-tag {
+            display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 0.55rem;
+            font-weight: 600; margin-left: 3px; vertical-align: middle;
+        }
+        .remark-nfc { background: #0ea5e9; color: #fff; }
+        .remark-qr { background: #ec4899; color: #fff; }
+        .remark-manual { background: #8b5cf6; color: #fff; }
+
+        /* Burger menu */
+        .header-bar {
+            display: flex; align-items: center; justify-content: center; position: relative;
+            max-width: 600px; margin: 0 auto;
+        }
+        .burger-btn {
+            position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: #e2e8f0; font-size: 1.6rem; cursor: pointer; padding: 4px 8px;
+        }
+        .menu-overlay {
+            display: none; position: fixed; top:0;left:0;right:0;bottom:0;
+            background: rgba(0,0,0,0.5); z-index: 300;
+        }
+        .menu-overlay.active { display: block; }
+        .side-menu {
+            position: fixed; top:0; left:-280px; width: 280px; height: 100%; background: #1e293b;
+            z-index: 301; transition: left 0.3s; overflow-y: auto; padding: 20px 0;
+        }
+        .side-menu.active { left: 0; }
+        .menu-header { padding: 10px 20px 20px; border-bottom: 1px solid #334155; margin-bottom: 10px; }
+        .menu-header h3 { color: #38bdf8; font-size: 1rem; }
+        .menu-section { padding: 8px 20px; }
+        .menu-section-title { color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        .menu-item {
+            display: flex; align-items: center; padding: 12px 0; cursor: pointer; color: #e2e8f0;
+            font-size: 0.9rem; border-bottom: 1px solid #0f172a;
+        }
+        .menu-item:active { color: #38bdf8; }
+        .menu-item .mi-icon { width: 28px; font-size: 1.1rem; }
+        .menu-toggle {
+            display: flex; align-items: center; justify-content: space-between; padding: 10px 0;
+            color: #e2e8f0; font-size: 0.85rem;
+        }
+        .toggle-switch {
+            width: 44px; height: 24px; background: #475569; border-radius: 12px; position: relative;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .toggle-switch.on { background: #10b981; }
+        .toggle-switch::after {
+            content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+            background: #fff; border-radius: 50%; transition: left 0.2s;
+        }
+        .toggle-switch.on::after { left: 22px; }
+
+        .footer {
+            text-align: center; padding: 20px 10px; margin-top: 20px; color: #475569; font-size: 0.7rem;
+            border-top: 1px solid #1e293b; max-width: 600px; margin-left: auto; margin-right: auto;
+        }
+        .footer .copyright { color: #94a3b8; font-size: 0.75rem; margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+    <!-- Burger menu -->
+    <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
+    <div class="side-menu" id="sideMenu">
+        <div class="menu-header"><h3>Settings & Tools</h3></div>
+        <div class="menu-section">
+            <div class="menu-section-title">Announcement</div>
+            <div class="menu-toggle">
+                Name announcement
+                <div class="toggle-switch on" id="toggleAnnounce" onclick="toggleSetting('announce')"></div>
+            </div>
+            <div class="menu-toggle">
+                Simple greeting
+                <div class="toggle-switch on" id="toggleGreeting" onclick="toggleSetting('greeting')"></div>
+            </div>
+            <div class="menu-toggle">
+                Encouragement
+                <div class="toggle-switch" id="toggleEncourage" onclick="toggleSetting('encourage')"></div>
+            </div>
+        </div>
+        <div class="menu-section">
+            <div class="menu-section-title">Attendance Mode</div>
+            <div class="menu-toggle">
+                Attend Code (for iPhone/no NFC)
+                <div class="toggle-switch" id="toggleAttendCode" onclick="toggleAttendCode()"></div>
+            </div>
+        </div>
+        <div class="menu-section">
+            <div class="menu-section-title">Professor</div>
+            <div class="menu-item" id="menuProfNFC" onclick="registerProfessor('nfc');closeMenu()"><span class="mi-icon">&#128179;</span> Register Professor (NFC)</div>
+            <div class="menu-item" onclick="registerProfessor('password');closeMenu()"><span class="mi-icon">&#128272;</span> Register Professor (Password)</div>
+            <div id="profStatus" style="font-size:0.75rem;color:#64748b;padding:4px 0"></div>
+        </div>
+        <div class="menu-section">
+            <div class="menu-section-title">Tools</div>
+            <div class="menu-item" onclick="exportCSV();closeMenu()"><span class="mi-icon">&#128196;</span> Export CSV</div>
+            <div class="menu-item" onclick="closeMenu();document.getElementById('uploadFile').click()"><span class="mi-icon">&#128228;</span> Upload Student List</div>
+            <div class="menu-item" onclick="shareBluetooth();closeMenu()"><span class="mi-icon">&#128225;</span> Share via Bluetooth</div>
+            <div class="menu-item" onclick="closeMenu();requireAuth('Backup All Data',()=>backupData())"><span class="mi-icon">&#128190;</span> Backup All Data</div>
+            <div class="menu-item" onclick="closeMenu();document.getElementById('restoreFile').click()"><span class="mi-icon">&#128194;</span> Restore Backup</div>
+            <div class="menu-item" onclick="installPWA();closeMenu()"><span class="mi-icon">&#128241;</span> Install App (PWA)</div>
+            <div class="menu-item" onclick="clearAll();closeMenu()"><span class="mi-icon">&#128465;</span> Clear All Data</div>
+            <div class="menu-item" style="color:#fca5a5" onclick="appReset();closeMenu()"><span class="mi-icon">&#128163;</span> App Reset</div>
+        </div>
+        <div class="menu-section">
+            <div class="menu-section-title">Courses</div>
+            <div id="menuCourseList"></div>
+            <div class="menu-item" style="color:#fca5a5" onclick="removeCourse();closeMenu()"><span class="mi-icon">&#128465;</span> Remove Current Course</div>
+        </div>
+        <div class="menu-section">
+            <div class="menu-item" onclick="showHelp();closeMenu()"><span class="mi-icon">&#10067;</span> Help</div>
+        </div>
+    </div>
+
+    <div class="header-bar">
+        <button class="burger-btn" onclick="openMenu()">&#9776;</button>
+        <div style="text-align:center">
+            <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v5.8</div>
+        </div>
+    </div>
+
+    <div class="top-bar">
+        <button class="top-btn btn-find" id="btnFind" onclick="setMode('find')">Find</button>
+        <button class="top-btn btn-attend" id="btnNFC" onclick="setMode('nfc')">&#10003; Attend NFC</button>
+        <button class="top-btn btn-qr" id="btnQR" onclick="setMode('qr')">Attend Code</button>
+    </div>
+    <input type="file" id="uploadFile" accept=".txt,.csv,.text" class="hidden">
+    <input type="file" id="restoreFile" accept=".json" class="hidden">
+
+    <div id="attendanceSummary" class="summary-bar"></div>
+    <div id="statusBar" class="status-bar status-idle">Upload a student list or use Find/Attend buttons</div>
+    <div id="unsupported" class="unsupported hidden"><strong>Web NFC not supported.</strong><br>bk<br>Requires Chrome 89+ on Android with HTTPS.</div>
+
+    <div class="student-list" id="studentList"></div>
+
+    <div class="footer">
+        <div class="copyright">&copy; BrianKei</div>
+        bk<br>
+        Minimum requirements: Chrome 89+ | Android 10+
+    </div>
+
+    <!-- Welcome / NFC setup modal -->
+    <div class="modal-overlay" id="welcomeModal">
+        <div class="modal">
+            <h3>Welcome</h3>
+            <p>bk</p>
+            <p>To get started, register with NFC card or password.</p>
+            <button class="modal-btn modal-confirm" id="welcomeNFCBtn" onclick="startWelcomeReg('nfc')">Register with NFC</button>
+            <button class="modal-btn" style="background:#f59e0b;color:#fff" onclick="startWelcomeReg('password')">Register with Password</button>
+        </div>
+    </div>
+
+    <!-- Help modal -->
+    <div class="modal-overlay" id="helpModal">
+        <div class="modal" style="text-align:left;max-width:450px">
+            <h3 style="text-align:center">Help</h3>
+            <div style="max-height:400px;overflow-y:auto;font-size:0.85rem;line-height:1.6;color:#94a3b8">
+                <p style="color:#38bdf8;font-weight:600;margin-bottom:4px">Getting Started</p>
+                <p>1. Register professor (NFC card or password)<br>
+                2. Install the app for offline use (see below)<br>
+                3. Open the installed app from home screen<br>
+                4. Upload a student list file<br>
+                5. Press Attend NFC or Attend Code to start</p>
+                <p style="margin-top:6px;font-size:0.8rem;color:#64748b">After installing, you do not need to visit this website again. All data is stored locally on your device.</p>
+
+                <p style="color:#38bdf8;font-weight:600;margin-top:12px;margin-bottom:4px">Install for Offline Use</p>
+                <p><strong style="color:#10b981">iPhone / iPad:</strong> Open this page in <strong>Safari</strong>, tap the <strong>Share</strong> button (square with arrow), then choose <strong>"Add to Home Screen"</strong>.</p>
+                <p style="margin-top:6px"><strong style="color:#10b981">Android:</strong> Open menu ☰ and choose <strong>"Install App (PWA)"</strong>, or tap Chrome menu (...) > <strong>"Add to Home screen"</strong>.</p>
+
+                <p style="color:#38bdf8;font-weight:600;margin-top:12px;margin-bottom:4px">Student List File Format</p>
+                <p>Plain text file (.txt) with:</p>
+                <div style="background:#0f172a;border-radius:6px;padding:8px 12px;margin:6px 0;font-family:monospace;font-size:0.8rem;color:#e2e8f0">
+                    Line 1: Course Name<br>
+                    Line 2: Professor Name<br>
+                    Line 3: Student Name,last4digits<br>
+                    Line 4: Student Name,last4digits<br>
+                    ...
+                </div>
+                <p style="font-size:0.8rem;color:#64748b;margin-top:4px">Last 4 digits of student number are used for Attend Code verification.</p>
+                <p style="margin-top:4px">Example:</p>
+                <div style="background:#0f172a;border-radius:6px;padding:8px 12px;margin:6px 0;font-family:monospace;font-size:0.8rem;color:#e2e8f0">
+                    AF5122 Business Analytics<br>
+                    Professor Peter Chan<br>
+                    Chan Tai Man,1234<br>
+                    Huang Xiao Fu,5678<br>
+                    Lee Shian Lan,9012
+                </div>
+
+                <p style="color:#38bdf8;font-weight:600;margin-top:12px;margin-bottom:4px">Modes</p>
+                <p><strong style="color:#10b981">Attend NFC</strong> — Students tap NFC cards continuously<br>
+                <strong style="color:#ec4899">Attend Code</strong> — Scan QR codes for attendance<br>
+                <strong style="color:#f59e0b">Find</strong> — Scan NFC card to locate a student</p>
+
+                <p style="color:#38bdf8;font-weight:600;margin-top:12px;margin-bottom:4px">Student Actions</p>
+                <p><strong>Manual</strong> — Manual attendance (double confirm + professor NFC)<br>
+                <strong>Log</strong> — View attendance history<br>
+                <strong>Re-reg</strong> — Re-register NFC/QR (professor NFC required)</p>
+
+                <p style="color:#38bdf8;font-weight:600;margin-top:12px;margin-bottom:4px">Multiple Courses</p>
+                <p>The app supports multiple courses. You can upload multiple student lists. Switch between courses from the Courses section in the menu.</p>
+
+                <p style="color:#38bdf8;font-weight:600;margin-top:12px;margin-bottom:4px">Data Management</p>
+                <p>You can export the attendance record or transfer the records via Bluetooth. You can backup and restore app local storage to another device.</p>
+
+                <p style="color:#38bdf8;font-weight:600;margin-top:12px;margin-bottom:4px">Requirements</p>
+                <p>Chrome 89+ | Android 10+ | HTTPS required for NFC</p>
+            </div>
+            <div style="text-align:center;margin-top:12px">
+                <button class="modal-btn modal-cancel" onclick="document.getElementById('helpModal').classList.remove('active')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth modal (professor NFC only) -->
+    <div class="modal-overlay" id="authModal">
+        <div class="modal">
+            <h3>Authorization Required</h3>
+            <p id="authActionName" style="color:#f59e0b;font-weight:600"></p>
+            <p style="font-size:0.8rem;color:#64748b">Scan professor's NFC card or enter password to authorize</p>
+            <button class="modal-btn modal-confirm" id="authNFCBtn" onclick="authWithNFC()">Scan NFC</button>
+            <button class="modal-btn" style="background:#f59e0b;color:#fff" onclick="authWithPassword()">Password</button>
+            <button class="modal-btn modal-cancel" onclick="closeAuthModal()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Registration method modal -->
+    <div class="modal-overlay" id="regMethodModal">
+        <div class="modal">
+            <h3>Register ID</h3>
+            <p><span id="regMethodName"></span></p>
+            <p style="font-size:0.8rem;color:#64748b">Choose registration method:</p>
+            <button class="modal-btn modal-confirm" onclick="chooseRegMethod('nfc')">NFC Card</button>
+            <button class="modal-btn" style="background:#ec4899;color:#fff" onclick="chooseRegMethod('qr')">QR Code</button>
+            <button class="modal-btn modal-cancel" onclick="document.getElementById('regMethodModal').classList.remove('active')">Cancel</button>
+        </div>
+    </div>
+
+    <!-- QR Verification modal -->
+    <div class="modal-overlay" id="qrVerifyModal">
+        <div class="modal">
+            <h3 id="qrVerifyTitle">Attendance Verification</h3>
+            <p style="font-size:3rem;font-weight:700;color:#10b981;margin:16px 0" id="qrVerifyCode"></p>
+            <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px">Show this code to the student. Student must choose the correct number below.</p>
+            <div id="qrVerifyChoices" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"></div>
+            <div style="margin-top:12px">
+                <button class="modal-btn modal-cancel" onclick="closeQRVerify(false)">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Consent modal (NFC only) -->
+    <div class="modal-overlay" id="consentModal">
+        <div class="modal">
+            <h3>NFC Card Registration</h3>
+            <p id="consentMsg"></p>
+            <p style="font-size:0.8rem;color:#64748b">By tapping "I Consent", you agree to have your NFC card serial number recorded for attendance purposes.</p>
+            <button class="modal-btn modal-cancel" onclick="closeConsentModal()">Cancel</button>
+            <button class="modal-btn modal-confirm" onclick="confirmConsent()">I Consent</button>
+        </div>
+    </div>
+
+    <!-- Re-register modal -->
+    <div class="modal-overlay" id="reregisterModal">
+        <div class="modal">
+            <h3>Re-register?</h3>
+            <p id="reregisterMsg"></p>
+            <button class="modal-btn modal-cancel" onclick="closeModal()">Cancel</button>
+            <button class="modal-btn modal-confirm" onclick="confirmReregister('nfc')">NFC</button>
+            <button class="modal-btn" style="background:#ec4899;color:#fff" onclick="confirmReregister('qr')">QR</button>
+        </div>
+    </div>
+
+    <!-- QR Scanner overlay -->
+    <div class="qr-overlay" id="qrOverlay">
+        <span class="qr-label" id="qrLabel">Scan QR Code</span>
+        <video id="qrVideo" autoplay playsinline></video>
+        <button class="qr-close" onclick="stopQRScan()">Close</button>
+    </div>
+
+
+    <!-- History modal -->
+    <div class="modal-overlay" id="historyModal">
+        <div class="modal">
+            <h3 id="historyTitle">Attendance Record</h3>
+            <div class="history-list" id="historyList"></div>
+            <button class="modal-btn modal-cancel" onclick="document.getElementById('historyModal').classList.remove('active')">Close</button>
+        </div>
+    </div>
+
+    <!-- Delete course modal -->
+    <div class="modal-overlay" id="deleteCourseModal">
+        <div class="modal">
+            <h3>Delete Course?</h3>
+            <p id="deleteCourseMsg"></p>
+            <button class="modal-btn modal-cancel" onclick="closeDeleteCourseModal()">Cancel</button>
+            <button class="modal-btn modal-danger" onclick="confirmDeleteCourse()">Delete</button>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'nfc_attendance_courses';
+        let authCallback = null;
+
+        // State
+        let courses = {};
+        let activeCourse = null;
+        let students = [];
+        let scanMode = null;
+        let registerTarget = null;
+        let manualTarget = null;
+        let reader = null;
+        let abortController = null;
+        let audioCtx = null;
+        let serverMode = false;
+        let deleteCourseTarget = null;
+        let attendMode = 'nfc'; // 'nfc' or 'qr' — set by Attend NFC / Attend Code buttons
+
+        // Settings (persisted in localStorage)
+        const SETTINGS_KEY = 'nfc_attendance_settings';
+        const PROF_KEY = 'nfc_professor';
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        let settings = { announce: true, greeting: true, encourage: false, forceOffline: false, attendCode: isIOS };
+        let professorGlobal = { name: '', nfcSerial: '' }; // global professor NFC, independent of courses
+
+        function loadSettings() {
+            const saved = localStorage.getItem(SETTINGS_KEY);
+            if (saved) { try { Object.assign(settings, JSON.parse(saved)); } catch(e) {} }
+            const profSaved = localStorage.getItem(PROF_KEY);
+            if (profSaved) { try { professorGlobal = JSON.parse(profSaved); } catch(e) {} }
+        }
+        function saveSettings() {
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        }
+        function saveProfessor() {
+            localStorage.setItem(PROF_KEY, JSON.stringify(professorGlobal));
+        }
+        function toggleSetting(key) {
+            settings[key] = !settings[key];
+            saveSettings();
+            updateToggleUI();
+        }
+        function updateToggleUI() {
+            document.getElementById('toggleAnnounce').className = 'toggle-switch' + (settings.announce ? ' on' : '');
+            document.getElementById('toggleGreeting').className = 'toggle-switch' + (settings.greeting ? ' on' : '');
+            document.getElementById('toggleEncourage').className = 'toggle-switch' + (settings.encourage ? ' on' : '');
+            document.getElementById('toggleAttendCode').className = 'toggle-switch' + (settings.attendCode ? ' on' : '');
+            updateAttendCodeUI();
+        }
+
+        function toggleAttendCode() {
+            settings.attendCode = !settings.attendCode;
+            saveSettings();
+            updateToggleUI();
+            // Switch mode accordingly
+            if (settings.attendCode) {
+                setMode('qr');
+            } else {
+                setMode('nfc');
+            }
+        }
+
+        function updateAttendCodeUI() {
+            const btnQR = document.getElementById('btnQR');
+            const btnNFC = document.getElementById('btnNFC');
+            const btnFind = document.getElementById('btnFind');
+
+            if (isIOS) {
+                // iOS: hide NFC options, show only Attend Code
+                btnNFC.style.display = 'none';
+                btnFind.style.display = 'none';
+                btnQR.style.display = '';
+                if (attendMode === 'nfc' || attendMode === 'find') setMode('qr');
+            } else {
+                // Android: show/hide Attend Code based on setting
+                btnNFC.style.display = '';
+                btnFind.style.display = '';
+                if (settings.attendCode) {
+                    btnQR.style.display = '';
+                } else {
+                    btnQR.style.display = 'none';
+                    if (attendMode === 'qr') setMode('nfc');
+                }
+            }
+        }
+
+        // ---- Menu ----
+        function openMenu() {
+            document.getElementById('menuOverlay').classList.add('active');
+            document.getElementById('sideMenu').classList.add('active');
+            renderMenuCourses();
+            updateProfStatus();
+        }
+        function closeMenu() {
+            document.getElementById('menuOverlay').classList.remove('active');
+            document.getElementById('sideMenu').classList.remove('active');
+        }
+        function renderMenuCourses() {
+            const el = document.getElementById('menuCourseList');
+            const keys = Object.keys(courses);
+            if (keys.length === 0) {
+                el.innerHTML = '<div style="color:#64748b;font-size:0.85rem;padding:8px 0">No courses loaded</div>';
+                return;
+            }
+            el.innerHTML = keys.map(key =>
+                `<div class="menu-item" onclick="switchCourse('${key}');closeMenu()" style="${key === activeCourse ? 'color:#38bdf8;font-weight:700' : ''}">
+                    <span class="mi-icon">${key === activeCourse ? '&#9679;' : '&#9675;'}</span> ${escapeHTML(courses[key].title)}
+                </div>`
+            ).join('');
+        }
+        async function switchCourse(key) {
+            activeCourse = key;
+            await loadActiveCourse();
+            updateTitle();
+            renderAll();
+        }
+
+        // ---- Bluetooth Share ----
+        function getMMDDYYYY() {
+            const now = new Date();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const yyyy = now.getFullYear();
+            return mm + dd + yyyy;
+        }
+
+        async function shareBluetooth() {
+            if (!activeCourse) { setStatus('No course loaded', 'error'); return; }
+            const c = courses[activeCourse];
+            const dateStr = getMMDDYYYY();
+            const fileName = `${c.title.replace(/\s+/g,'_')}_${dateStr}`;
+            let text = `${c.title} Attendance - ${dateStr}\n\n`;
+            let count = 0;
+            students.forEach((s, i) => {
+                if (i === 0) return;
+                const attended = hasAttendedToday(s);
+                if (attended) count++;
+                text += `${i}. ${s.name}${s.studentNo ? ' (' + s.studentNo + ')' : ''} - ${attended ? 'Present' : 'Absent'}\n`;
+            });
+            text += `\nTotal: ${count}/${students.length - 1}`;
+
+            if (navigator.share) {
+                try {
+                    const file = new File([text], `${fileName}.txt`, { type: 'text/plain' });
+                    await navigator.share({ title: `${c.title} Attendance`, files: [file] });
+                    setStatus('Shared successfully', 'success');
+                } catch(e) {
+                    if (e.name !== 'AbortError') {
+                        // Fallback if file sharing not supported
+                        try {
+                            await navigator.share({ title: `${c.title} Attendance`, text: text });
+                            setStatus('Shared successfully', 'success');
+                        } catch(e2) {
+                            if (e2.name !== 'AbortError') setStatus('Share cancelled', 'idle');
+                        }
+                    }
+                }
+            } else {
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${fileName}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+                setStatus('Attendance file downloaded — share via Bluetooth from Files app', 'info');
+            }
+        }
+
+        // ---- Auth (professor NFC or QR) ----
+        function requireAuth(actionName, callback) {
+            if (!professorGlobal.nfcSerial) {
+                setStatus('Register professor first — open menu ☰ > Register Professor', 'error');
+                playBoo();
+                return;
+            }
+            authCallback = callback;
+            document.getElementById('authActionName').textContent = actionName;
+            document.getElementById('authModal').classList.add('active');
+        }
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.remove('active');
+            authCallback = null;
+        }
+        function authWithNFC() {
+            if (!professorGlobal.nfcSerial) {
+                setStatus('Professor not registered', 'error');
+                return;
+            }
+            const cb = authCallback;
+            authCallback = null;
+            document.getElementById('authModal').classList.remove('active');
+            setStatus('Scan professor\'s NFC card to authorize...', 'scanning');
+            startAuthNFCScan(cb);
+        }
+
+        async function authWithPassword() {
+            const pw = prompt('Enter professor password:');
+            if (!pw) return;
+            const enc = new TextEncoder();
+            const hash = await crypto.subtle.digest('SHA-256', enc.encode(pw));
+            const serial = 'pw:' + btoa(String.fromCharCode(...new Uint8Array(hash))).slice(0, 16);
+            const cb = authCallback;
+            if (serial === professorGlobal.nfcSerial) {
+                authCallback = null;
+                document.getElementById('authModal').classList.remove('active');
+                playBeep();
+                setStatus('Authorized by password', 'success');
+                if (cb) cb();
+            } else {
+                playBoo();
+                setStatus('Wrong password', 'error');
+            }
+        }
+        async function startAuthNFCScan(callback) {
+            try {
+                const ac = new AbortController();
+                const r = new NDEFReader();
+                await r.scan({ signal: ac.signal });
+                r.addEventListener('reading', ({ serialNumber }) => {
+                    ac.abort();
+                    const serial = serialNumber || 'unknown';
+                    if (serial === professorGlobal.nfcSerial) {
+                        playBeep();
+                        speakName(professorGlobal.name || 'Professor');
+                        setStatus('Authorized by professor', 'success');
+                        if (callback) callback();
+                    } else {
+                        playBoo();
+                        setStatus('Wrong card — only professor\'s NFC card can authorize', 'error');
+                    }
+                });
+            } catch(e) {
+                setStatus('NFC scan failed. Use master password instead.', 'error');
+            }
+        }
+
+        // ---- Backup & Restore ----
+        async function backupData() {
+            const passphrase = prompt('Set a passphrase to encrypt the backup:');
+            if (!passphrase || passphrase.length < 4) {
+                setStatus('Backup cancelled — passphrase required (min 4 chars)', 'error');
+                return;
+            }
+            const backup = {
+                version: 'v5.8',
+                timestamp: new Date().toISOString(),
+                courses: courses,
+                professor: professorGlobal,
+                settings: settings,
+                encKey: localStorage.getItem(ENC_KEY_STORE) || ''
+            };
+            // Encrypt backup with passphrase
+            const enc = new TextEncoder();
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+            const key = await crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+                keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
+            );
+            const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(backup)));
+            const output = {
+                encrypted: true,
+                salt: btoa(String.fromCharCode(...salt)),
+                iv: btoa(String.fromCharCode(...iv)),
+                data: btoa(String.fromCharCode(...new Uint8Array(encrypted)))
+            };
+            const blob = new Blob([JSON.stringify(output)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `attendance_backup_${getMMDDYYYY()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            playBeep();
+            setStatus('Encrypted backup saved', 'success');
+        }
+
+        async function restoreData(jsonStr) {
+            try {
+                const raw = JSON.parse(jsonStr);
+
+                let backup;
+                if (raw.encrypted) {
+                    // Encrypted backup — ask for passphrase
+                    const passphrase = prompt('Enter backup passphrase to decrypt:');
+                    if (!passphrase) { setStatus('Restore cancelled', 'idle'); return; }
+                    const enc = new TextEncoder();
+                    const salt = Uint8Array.from(atob(raw.salt), c => c.charCodeAt(0));
+                    const iv = Uint8Array.from(atob(raw.iv), c => c.charCodeAt(0));
+                    const ct = Uint8Array.from(atob(raw.data), c => c.charCodeAt(0));
+                    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+                    const key = await crypto.subtle.deriveKey(
+                        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+                        keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+                    );
+                    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+                    backup = JSON.parse(new TextDecoder().decode(decrypted));
+                } else {
+                    // Legacy unencrypted backup
+                    backup = raw;
+                }
+
+                if (!backup.courses) throw new Error('Invalid backup file');
+
+                if (backup.encKey) {
+                    localStorage.setItem(ENC_KEY_STORE, backup.encKey);
+                    _encKeyCache = null;
+                }
+
+                courses = backup.courses;
+                saveCourses();
+
+                if (backup.professor) {
+                    professorGlobal = backup.professor;
+                    saveProfessor();
+                }
+
+                if (backup.settings) {
+                    Object.assign(settings, backup.settings);
+                    saveSettings();
+                    updateToggleUI();
+                }
+
+                activeCourse = null;
+                await loadActiveCourse();
+                updateTitle();
+                renderAll();
+                playBeep();
+                setStatus(`Backup restored (${Object.keys(courses).length} courses)`, 'success');
+            } catch(e) {
+                playBoo();
+                if (e.message.includes('decrypt')) {
+                    setStatus('Wrong passphrase — cannot decrypt backup', 'error');
+                } else {
+                    setStatus('Invalid backup file', 'error');
+                }
+            }
+        }
+
+        // ---- App Reset ----
+        function appReset() {
+            if (!confirm('APP RESET\n\nThis will delete ALL data including:\n- All courses and attendance records\n- Professor NFC registration\n- All settings\n\nThis cannot be undone. Continue?')) return;
+            if (!confirm('FINAL WARNING\n\nAre you absolutely sure you want to erase everything?')) return;
+            requireAuth('App Reset', () => {
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(SETTINGS_KEY);
+                localStorage.removeItem(PROF_KEY);
+                localStorage.removeItem(ENC_KEY_STORE);
+                localStorage.removeItem('nfc_enc_migrated');
+                courses = {};
+                activeCourse = null;
+                students = [];
+                professorGlobal = { name: '', nfcSerial: '' };
+                settings = { announce: true, greeting: true, encourage: false };
+                _encKeyCache = null;
+                updateToggleUI();
+                updateTitle();
+                renderAll();
+                playBeep();
+                setStatus('Factory reset complete', 'success');
+                // Show welcome screen
+                setTimeout(() => {
+                    document.getElementById('welcomeModal').classList.add('active');
+                }, 500);
+            });
+        }
+
+        // ---- Help ----
+        function showHelp() {
+            document.getElementById('helpModal').classList.add('active');
+        }
+
+        // ---- Welcome NFC Setup ----
+        const WELCOME_MSG = 'Professor, all data is stored locally. No data will go online. Please install this app first by going to menu and choose Install App PWA. After installation, open the installed app from your home screen and upload your first course. You will not need to visit this website again. The student list is a text file with short course name, professor name and list of students in each line.';
+
+        function startWelcomeReg(method) {
+            document.getElementById('welcomeModal').classList.remove('active');
+            if (method === 'password') {
+                registerProfPassword().then(() => {
+                    if (professorGlobal.nfcSerial) showWelcomeScreen(professorGlobal.nfcSerial, 'password');
+                });
+            } else {
+                startWelcomeNFCScan();
+            }
+        }
+
+        async function startWelcomeNFCScan() {
+            setStatus('Scan professor\'s NFC card...', 'scanning');
+            try {
+                const ac = new AbortController();
+                const r = new NDEFReader();
+                await r.scan({ signal: ac.signal });
+                r.addEventListener('reading', async ({ serialNumber }) => {
+                    ac.abort();
+                    await showWelcomeScreen(serialNumber || 'unknown', 'nfc');
+                });
+            } catch(e) {
+                setStatus('NFC scan failed. Open menu to try again.', 'error');
+            }
+        }
+
+        async function showWelcomeScreen(serial, method) {
+            professorGlobal.nfcSerial = serial;
+            saveProfessor();
+            playBeep();
+            speakName(professorGlobal.name || 'Professor');
+
+            // Announce welcome message
+            setTimeout(() => {
+                if ('speechSynthesis' in window) {
+                    const msg = new SpeechSynthesisUtterance(WELCOME_MSG);
+                    msg.lang = 'en-US';
+                    msg.rate = 0.85;
+                    msg.volume = 1;
+                    speechSynthesis.speak(msg);
+                }
+            }, 2000);
+
+            setStatus(`Professor registered (${method}): ${serial.slice(-8)}`, 'success');
+            const list = document.getElementById('studentList');
+            list.innerHTML = `<div class="no-courses" style="font-size:0.9rem;line-height:1.6;color:#94a3b8">
+                <p style="color:#10b981;font-weight:600;margin-bottom:12px">Welcome, ${escapeHTML(professorGlobal.name || 'Professor')}!</p>
+                <p>${escapeHTML(WELCOME_MSG)}</p>
+                <br>
+                <p style="color:#10b981;font-weight:600;font-size:1rem;cursor:pointer" onclick="installPWA()">&#128241; Step 1: Tap here to Install App (PWA)</p>
+                <p style="color:#64748b;font-size:0.8rem;margin-top:4px">After installing, open the app from your home screen.</p>
+                <br>
+                <p style="color:#38bdf8;font-weight:600">Student list file format:</p>
+                <div style="background:#0f172a;border-radius:6px;padding:10px;margin:8px auto;font-family:monospace;font-size:0.8rem;color:#e2e8f0;text-align:left;max-width:250px">
+                    AF5122 Business Analytics<br>
+                    Professor Peter Chan<br>
+                    Chan Tai Man,1234<br>
+                    Huang Xiao Fu,5678<br>
+                    Lee Shian Lan,9012<br>
+                    ...
+                </div>
+            </div>`;
+            updateProfStatus();
+        }
+
+        // ---- Remove Course ----
+        function removeCourse() {
+            if (!activeCourse) { setStatus('No course loaded', 'error'); return; }
+            const title = courses[activeCourse].title;
+            if (!confirm(`Remove course "${title}" and all its data?`)) return;
+            requireAuth('Remove Course: ' + title, async () => {
+                delete courses[activeCourse];
+                activeCourse = null;
+                saveCourses();
+                await loadActiveCourse();
+                updateTitle();
+                renderAll();
+                playBeep();
+                setStatus(`Course "${title}" removed`, 'success');
+            });
+        }
+
+        // ---- PWA Install ----
+        let deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+        });
+        function installPWA() {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                deferredInstallPrompt.userChoice.then(result => {
+                    if (result.outcome === 'accepted') {
+                        setStatus('App installed successfully', 'success');
+                        playBeep();
+                    }
+                    deferredInstallPrompt = null;
+                });
+            } else if (window.matchMedia('(display-mode: standalone)').matches) {
+                setStatus('App is already installed', 'info');
+            } else {
+                setStatus('To install: tap Chrome menu (...) > "Add to Home screen"', 'info');
+            }
+        }
+
+        // ---- Professor NFC Registration ----
+        function registerProfessor(method) {
+            if (professorGlobal.nfcSerial) {
+                requireAuth('Re-register Professor', () => {
+                    professorGlobal.nfcSerial = '';
+                    saveProfessor();
+                    if (method === 'password') registerProfPassword();
+                    else startProfNFCScan();
+                });
+            } else {
+                if (method === 'password') registerProfPassword();
+                else startProfNFCScan();
+            }
+        }
+
+        async function registerProfPassword() {
+            const pw = prompt('Set a professor password (min 6 characters):');
+            if (!pw || pw.length < 6) {
+                setStatus('Password must be at least 6 characters', 'error');
+                playBoo();
+                return;
+            }
+            // Hash password and use as professor serial
+            const enc = new TextEncoder();
+            const hash = await crypto.subtle.digest('SHA-256', enc.encode(pw));
+            const serial = 'pw:' + btoa(String.fromCharCode(...new Uint8Array(hash))).slice(0, 16);
+            professorGlobal.nfcSerial = serial;
+            professorGlobal.authType = 'password';
+            professorGlobal.pwHash = serial;
+            saveProfessor();
+            if (students.length > 0) {
+                students[0].nfcSerial = serial;
+                students[0].timestamps.push(getNowTimestamp('password'));
+                await saveActiveCourse();
+            }
+            playBeep();
+            speakName(professorGlobal.name || 'Professor');
+            setStatus('Professor registered with password', 'success');
+            updateProfStatus();
+        }
+
+        async function startProfNFCScan() {
+            setStatus('Scan professor\'s NFC card...', 'scanning');
+            try {
+                const ac = new AbortController();
+                const r = new NDEFReader();
+                await r.scan({ signal: ac.signal });
+                r.addEventListener('reading', async ({ serialNumber }) => {
+                    ac.abort();
+                    const serial = serialNumber || 'unknown';
+                    await saveProfRegistration(serial, 'nfc');
+                });
+            } catch(e) {
+                setStatus('NFC scan failed', 'error');
+            }
+        }
+
+        function startProfQRScan() {
+            setStatus('Scan professor\'s QR code...', 'scanning');
+            startQRScan('prof-register', null);
+        }
+
+        async function saveProfRegistration(serial, method) {
+            professorGlobal.nfcSerial = serial;
+            saveProfessor();
+            if (students.length > 0) {
+                students[0].nfcSerial = serial;
+                students[0].timestamps.push(getNowTimestamp(method === 'qr' ? 'qr code' : 'nfc'));
+                await saveActiveCourse();
+            }
+            playBeep();
+            speakName(professorGlobal.name || 'Professor');
+            setStatus(`Professor registered (${method}): ${serial.slice(-8)}`, 'success');
+            updateProfStatus();
+        }
+
+        function updateProfStatus() {
+            const el = document.getElementById('profStatus');
+            const name = professorGlobal.name || (students.length > 0 ? students[0].name : 'Professor');
+            el.innerHTML = professorGlobal.nfcSerial
+                ? `<span style="color:#10b981">${escapeHTML(name)}: &#10003; ${professorGlobal.nfcSerial.slice(-8)}</span>`
+                : `<span style="color:#f59e0b">${escapeHTML(name)}: Not registered</span>`;
+        }
+
+        // ---- Audio ----
+        function getAudioCtx() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            return audioCtx;
+        }
+        function playBeep() {
+            const ctx = getAudioCtx();
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.frequency.value = 880; o.type = 'sine'; g.gain.value = 0.3;
+            o.start(); o.stop(ctx.currentTime + 0.15);
+            setTimeout(() => {
+                const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+                o2.connect(g2); g2.connect(ctx.destination);
+                o2.frequency.value = 1320; o2.type = 'sine'; g2.gain.value = 0.3;
+                o2.start(); o2.stop(ctx.currentTime + 0.2);
+            }, 150);
+        }
+        const ENCOURAGEMENTS = [
+            'Keep up the great work', 'Stay curious and keep learning',
+            'Your effort makes a difference', 'Learning is a journey, enjoy it',
+            'Great to see you today', 'You are doing amazing',
+            'Stay focused and shine', 'Hard work pays off',
+            'Knowledge is power', 'Every class counts'
+        ];
+
+        function speakName(name) {
+            if (!settings.announce || !('speechSynthesis' in window)) return;
+            let text = '';
+            if (settings.greeting) {
+                const hour = new Date().getHours();
+                text += hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+                text += ', ';
+            }
+            text += name;
+            if (settings.encourage) {
+                const enc = ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)];
+                text += '. ' + enc;
+            }
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'en-US';
+            msg.rate = 0.9;
+            msg.volume = 1;
+            speechSynthesis.speak(msg);
+        }
+
+        function playBoo() {
+            const ctx = getAudioCtx();
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.frequency.value = 200; o.type = 'sawtooth'; g.gain.value = 0.3;
+            o.start(); g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            o.stop(ctx.currentTime + 0.5);
+        }
+
+        // ---- Encryption (random key stored in localStorage) ----
+        const ENC_KEY_STORE = 'nfc_enc_key';
+        let _encKeyCache = null;
+
+        async function getEncKey() {
+            if (_encKeyCache) return _encKeyCache;
+            let stored = localStorage.getItem(ENC_KEY_STORE);
+            if (!stored) {
+                const key = crypto.getRandomValues(new Uint8Array(32));
+                stored = btoa(String.fromCharCode(...key));
+                localStorage.setItem(ENC_KEY_STORE, stored);
+            }
+            const raw = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
+            _encKeyCache = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+            return _encKeyCache;
+        }
+
+        async function encryptSerial(serial) {
+            if (!serial) return '';
+            const key = await getEncKey();
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const encoded = new TextEncoder().encode(serial);
+            const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+            // Store as iv:ciphertext in base64
+            const ivB64 = btoa(String.fromCharCode(...iv));
+            const ctB64 = btoa(String.fromCharCode(...new Uint8Array(ciphertext)));
+            return ivB64 + ':' + ctB64;
+        }
+
+        async function decryptSerial(encrypted) {
+            if (!encrypted || !encrypted.includes(':')) return encrypted || '';
+            try {
+                const key = await getEncKey();
+                const [ivB64, ctB64] = encrypted.split(':');
+                const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
+                const ct = Uint8Array.from(atob(ctB64), c => c.charCodeAt(0));
+                const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+                return new TextDecoder().decode(decrypted);
+            } catch(e) {
+                return encrypted; // Return as-is if decryption fails (legacy unencrypted data)
+            }
+        }
+
+        // ---- Storage ----
+        async function detectServer() {
+            try {
+                const res = await fetch('/api/data', { method: 'GET', signal: AbortSignal.timeout(2000) });
+                if (res.ok) { const d = await res.json(); if (d.students) return true; }
+            } catch(e) {}
+            return false;
+        }
+        async function apiPost(url, body) {
+            const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+            return { status: res.status, data: await res.json() };
+        }
+
+        function loadCourses() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) { try { courses = JSON.parse(saved); } catch(e) { courses = {}; } }
+            else { courses = {}; }
+        }
+        function saveCourses() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(courses));
+        }
+        function getCourseKey(title) {
+            return title.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+        }
+
+        async function loadActiveCourse() {
+            if (!activeCourse || !courses[activeCourse]) {
+                const keys = Object.keys(courses);
+                activeCourse = keys.length > 0 ? keys[0] : null;
+            }
+            if (activeCourse && courses[activeCourse]) {
+                const c = courses[activeCourse];
+                students = [];
+                // Professor uses global NFC, sync name
+                if (!professorGlobal.name) { professorGlobal.name = c.professor; saveProfessor(); }
+                students.push({ id: 0, name: c.professor, nfcSerial: professorGlobal.nfcSerial, consented: true, timestamps: c.professorTimestamps || [] });
+                for (let i = 0; i < c.students.length; i++) {
+                    const s = c.students[i];
+                    const serial = await decryptSerial(s.nfcSerial || '');
+                    students.push({ id: i + 1, name: s.name, nfcSerial: serial, studentNo: s.studentNo || '', last4: s.last4 || '', consented: s.consented || false, consentedAt: s.consentedAt || '', timestamps: s.timestamps || [] });
+                }
+            } else {
+                students = [];
+            }
+        }
+
+        async function saveActiveCourse() {
+            if (!activeCourse || !courses[activeCourse]) return;
+            const c = courses[activeCourse];
+            if (students.length > 0) {
+                c.professorNfc = ''; // professor NFC stored globally, not per course
+                c.professorTimestamps = students[0].timestamps;
+                const encrypted = [];
+                for (const s of students.slice(1)) {
+                    encrypted.push({
+                        name: s.name, nfcSerial: await encryptSerial(s.nfcSerial), studentNo: s.studentNo || '', last4: s.last4 || '',
+                        consented: s.consented, consentedAt: s.consentedAt || '', timestamps: s.timestamps
+                    });
+                }
+                c.students = encrypted;
+            }
+            saveCourses();
+        }
+
+        function getNowTimestamp(remark) {
+            const now = new Date();
+            const ts = now.toLocaleDateString('en-CA') + ' ' + now.toLocaleTimeString('en-GB');
+            return remark ? ts + '|' + remark : ts;
+        }
+
+        function getTimestampDisplay(ts) {
+            const parts = ts.split('|');
+            return parts[0];
+        }
+
+        function getTimestampRemark(ts) {
+            const parts = ts.split('|');
+            return parts[1] || '';
+        }
+
+        // ---- Upload student list ----
+        function parseStudentFile(text) {
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length < 2) return null;
+            const students = lines.slice(2).map(line => {
+                const parts = line.split(',');
+                return { name: parts[0].trim(), last4: (parts[1] || '').trim() };
+            });
+            return { title: lines[0], professor: lines[1], students: students };
+        }
+
+        async function addCourse(parsed) {
+            const key = getCourseKey(parsed.title);
+            if (courses[key]) {
+                const existing = courses[key];
+                const existingMap = {};
+                existing.students.forEach(s => { existingMap[s.name] = s; });
+                const newStudents = parsed.students.map(st => {
+                    if (existingMap[st.name]) {
+                        const e = existingMap[st.name];
+                        e.last4 = st.last4 || e.last4 || '';
+                        return e;
+                    }
+                    return { name: st.name, nfcSerial: '', studentNo: '', last4: st.last4 || '', consented: false, consentedAt: '', timestamps: [] };
+                });
+                existing.students = newStudents;
+                existing.professor = parsed.professor;
+                existing.title = parsed.title;
+            } else {
+                courses[key] = {
+                    title: parsed.title,
+                    professor: parsed.professor,
+                    professorNfc: '',
+                    professorTimestamps: [],
+                    students: parsed.students.map(st => ({ name: st.name, nfcSerial: '', studentNo: '', last4: st.last4 || '', consented: false, consentedAt: '', timestamps: [] }))
+                };
+            }
+            activeCourse = key;
+            saveCourses();
+            await loadActiveCourse();
+        }
+
+        // ---- Render ----
+        function getTodayStr() { return new Date().toLocaleDateString('en-CA'); }
+        function hasAttendedToday(s) { const today = getTodayStr(); return s.timestamps.some(ts => ts.startsWith(today)); }
+
+        function updateModeIndicator() {
+            const el = document.getElementById('modeIndicator');
+            if (serverMode) { el.textContent = 'Server'; el.style.background = '#10b981'; }
+            else { el.textContent = 'Local'; el.style.background = '#f59e0b'; }
+        }
+
+        function renderCourseTabs() {
+            // Course tabs now rendered in side menu via renderMenuCourses()
+        }
+
+        function updateTitle() {
+            const titleEl = document.getElementById('appTitle');
+            const modeSpan = document.getElementById('modeIndicator').outerHTML;
+            if (activeCourse && courses[activeCourse]) {
+                titleEl.innerHTML = `${escapeHTML(courses[activeCourse].title)} Attendance ${modeSpan}`;
+                document.title = courses[activeCourse].title + ' Attendance';
+            } else {
+                titleEl.innerHTML = `NFC/Code Smart Attendance PWA ${modeSpan}`;
+                document.title = 'NFC/Code Smart Attendance PWA';
+            }
+        }
+
+        function renderList(highlightId, highlightClass) {
+            const list = document.getElementById('studentList');
+            list.innerHTML = '';
+            const summary = document.getElementById('attendanceSummary');
+
+            if (!activeCourse || students.length === 0) {
+                list.innerHTML = '<div class="no-courses">No course loaded.<br>Open menu &#9776; to upload a student list.<br><br><span style="color:#38bdf8;cursor:pointer" onclick="showHelp()">Tap here for help</span></div>';
+                summary.innerHTML = '';
+                return;
+            }
+
+            let presentCount = 0, studentTotal = 0;
+
+            students.forEach((s, i) => {
+                if (i === 0) return; // Skip professor — managed in burger menu
+                const attended = hasAttendedToday(s);
+                if (attended) presentCount++;
+                studentTotal++;
+
+                const row = document.createElement('div');
+                row.className = `student-row ${s.nfcSerial ? 'registered' : 'unregistered'}`;
+                if (highlightId === s.id && highlightClass) row.classList.add(highlightClass);
+
+                const lastTsRaw = s.timestamps.length > 0 ? s.timestamps[s.timestamps.length - 1] : '';
+                const lastTs = getTimestampDisplay(lastTsRaw);
+                const lastRemark = getTimestampRemark(lastTsRaw);
+                const manualBtn = `<button class="btn-manual" data-id="${s.id}">Manual</button>`;
+                const historyBtn = s.timestamps.length > 0 ? `<button class="btn-history" data-id="${s.id}">Log</button>` : '';
+                const reregBtn = s.nfcSerial ? `<button class="btn-rereg" data-id="${s.id}">Re-reg</button>` : '';
+                let nfcStatus;
+                if (s.nfcSerial && s.consented) {
+                    nfcStatus = `<span class="nfc-registered">&#10003; ${escapeHTML(s.nfcSerial.slice(-8))}</span>`;
+                } else if (s.nfcSerial) {
+                    nfcStatus = `<span class="nfc-id">${escapeHTML(s.nfcSerial.slice(-8))}</span>`;
+                } else if (s.consented) {
+                    nfcStatus = `<span class="btn-register-nfc consented" data-reg-id="${s.id}">Consented &#10003; Tap to Register</span>`;
+                } else {
+                    nfcStatus = `<span class="btn-register-nfc" data-reg-id="${s.id}">+ Tap to Register</span>`;
+                }
+
+                row.innerHTML = `
+                    <span class="student-num">${i}</span>
+                    <span class="student-name">${escapeHTML(s.name)}${s.studentNo ? '<span style="font-size:0.65rem;color:#64748b;margin-left:4px">' + escapeHTML(s.studentNo) + '</span>' : ''}${attended ? '<span class="check-mark">&#10003;</span>' : ''}</span>
+                    ${manualBtn}${historyBtn}${reregBtn}
+                    <span class="student-status">
+                        ${nfcStatus}
+                        ${lastTs ? `<br><span class="last-seen">${lastTs}</span>${lastRemark && ['nfc','qr code','manual'].includes(lastRemark) ? `<span class="remark-tag remark-${lastRemark}">${lastRemark}</span>` : ''}` : ''}
+                    </span>
+                `;
+
+                const manualBtnEl = row.querySelector('.btn-manual');
+                if (manualBtnEl) {
+                    manualBtnEl.addEventListener('click', (e) => { e.stopPropagation(); manualAttend(s.id); });
+                }
+                const regBtn = row.querySelector('.btn-register-nfc');
+                if (regBtn) {
+                    regBtn.addEventListener('click', (e) => { e.stopPropagation(); onStudentClick(s.id); });
+                }
+                const historyBtnEl = row.querySelector('.btn-history');
+                if (historyBtnEl) {
+                    historyBtnEl.addEventListener('click', (e) => { e.stopPropagation(); showHistory(s.id); });
+                }
+                const reregBtnEl = row.querySelector('.btn-rereg');
+                if (reregBtnEl) {
+                    reregBtnEl.addEventListener('click', (e) => { e.stopPropagation(); onReregisterClick(s.id); });
+                }
+                row.addEventListener('click', () => onStudentClick(s.id));
+                list.appendChild(row);
+            });
+
+            summary.innerHTML = `Today: <span class="count-present">${presentCount}</span> / <span class="count-total">${studentTotal}</span> students attended`;
+        }
+
+        function renderAll() {
+            renderCourseTabs();
+            renderList();
+        }
+
+        // ---- NFC ----
+        function setStatus(text, type) {
+            const bar = document.getElementById('statusBar');
+            bar.textContent = text;
+            bar.className = 'status-bar status-' + type;
+        }
+        function stopScan() {
+            if (abortController) { abortController.abort(); abortController = null; }
+            scanMode = null; registerTarget = null;
+        }
+
+        async function startNFCScan(mode, targetId) {
+            stopScan();
+            scanMode = mode;
+            registerTarget = targetId;
+            try {
+                abortController = new AbortController();
+                reader = new NDEFReader();
+                await reader.scan({ signal: abortController.signal });
+
+                if (mode === 'register') {
+                    setStatus(`Scanning NFC for: ${students[targetId].name} — hold card near device`, 'scanning');
+                } else if (mode === 'find') {
+                    setStatus('FIND mode: Scan a card to locate the student', 'scanning');
+                } else if (mode === 'attend') {
+                    setStatus('ATTEND mode: Scan a card to record attendance', 'scanning');
+                } else if (mode === 'manual') {
+                    setStatus(`Manual: ${students[targetId].name} — scan professor's NFC card to confirm`, 'scanning');
+                }
+
+                reader.addEventListener('reading', ({ serialNumber }) => {
+                    handleNFCRead(serialNumber || 'unknown');
+                });
+                reader.addEventListener('readingerror', () => {
+                    setStatus('Read error — reposition the card', 'error');
+                });
+            } catch (error) {
+                if (error.name === 'NotAllowedError') setStatus('NFC permission denied', 'error');
+                else if (error.name === 'NotSupportedError') setStatus('Web NFC not supported', 'error');
+                else setStatus(error.message, 'error');
+                scanMode = null;
+            }
+        }
+
+        async function handleNFCRead(serial) {
+            const currentMode = scanMode;
+            const currentTarget = registerTarget;
+
+            // Only stop scan for one-time operations (register, manual, auth)
+            // Keep scanning for attend and find modes
+            if (currentMode !== 'attend' && currentMode !== 'find') {
+                stopScan();
+            }
+
+            if (currentMode === 'register') {
+                const s = students[currentTarget];
+                const existing = students.find(st => st.nfcSerial === serial && st.id !== s.id);
+                if (existing) {
+                    playBoo();
+                    setStatus(`Card already registered to ${existing.name}!`, 'error');
+                    return;
+                }
+                const ts = getNowTimestamp('nfc');
+                s.nfcSerial = serial;
+                s.timestamps.push(ts);
+                s.consented = true;
+                await saveActiveCourse();
+                playBeep();
+                speakName(s.name);
+                setStatus(`Registered NFC for ${s.name}`, 'success');
+                renderList(s.id, 'attend-highlight');
+
+            } else if (currentMode === 'find') {
+                const found = students.find(s => s.nfcSerial === serial);
+                if (found) {
+                    playBeep();
+                    setStatus(`Found: ${found.name} — scanning continues...`, 'success');
+                    renderList(found.id, 'highlight');
+                    scrollToRow(found.id);
+                } else {
+                    playBoo();
+                    setStatus(`Card not registered — scanning continues...`, 'error');
+                }
+
+            } else if (currentMode === 'attend') {
+                const found = students.find(s => s.nfcSerial === serial);
+                if (found) {
+                    const ts = getNowTimestamp('nfc');
+                    found.timestamps.push(ts);
+                    await saveActiveCourse();
+                    playBeep();
+                    speakName(found.name);
+                    setStatus(`${found.name} — attendance recorded. Next student...`, 'success');
+                    renderList(found.id, 'attend-highlight');
+                    scrollToRow(found.id);
+                } else {
+                    playBoo();
+                    setStatus(`Card not registered — scanning continues...`, 'error');
+                }
+
+            } else if (currentMode === 'manual') {
+                if (serial === professorGlobal.nfcSerial) {
+                    const s = students[currentTarget];
+                    const ts = getNowTimestamp('manual');
+                    s.timestamps.push(ts);
+                    await saveActiveCourse();
+                    playBeep();
+                    speakName(s.name);
+                    setStatus(`Manual attendance confirmed for ${s.name}`, 'success');
+                    renderList(s.id, 'attend-highlight');
+                    scrollToRow(s.id);
+                } else {
+                    playBoo();
+                    setStatus("Wrong card — only professor's NFC card can confirm", 'error');
+                }
+                manualTarget = null;
+            }
+        }
+
+        function scrollToRow(id) {
+            setTimeout(() => {
+                const rows = document.querySelectorAll('.student-row');
+                if (rows[id]) rows[id].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+
+        // ---- Student click — attend if registered, register if not ----
+        async function onStudentClick(id) {
+            const s = students[id];
+            if (attendMode === 'find') {
+                // Find mode — tapping name does nothing
+                setStatus(`Find mode — scan NFC card to locate student`, 'info');
+                return;
+            } else if (s.nfcSerial && attendMode === 'nfc') {
+                // NFC mode — must use NFC card, not name tap
+                setStatus(`${s.name} is registered. Scan NFC card for attendance.`, 'info');
+                return;
+            } else if (s.nfcSerial && attendMode === 'qr') {
+                // Code verification mode
+                showQRVerify(id);
+                return;
+            } else if (attendMode === 'qr') {
+                // Code mode, not registered — show verification for attendance
+                showQRVerify(id);
+            } else {
+                // NFC mode, not registered — go straight to NFC registration
+                registerTarget = id;
+                if (!s.consented) {
+                    document.getElementById('consentMsg').textContent =
+                        `${s.name}, do you consent to register your NFC card for attendance tracking in this course?`;
+                    document.getElementById('consentModal').classList.add('active');
+                } else {
+                    startNFCScan('register', id);
+                }
+            }
+        }
+
+        // ---- QR Code Verification for Attendance ----
+        let qrVerifyTarget = null;
+        let qrVerifyCorrect = null;
+
+        function showQRVerify(id) {
+            qrVerifyTarget = id;
+            const s = students[id];
+
+            if (!s.last4) {
+                setStatus(`${s.name} has no student number. Upload student list with last 4 digits.`, 'error');
+                playBoo();
+                return;
+            }
+
+            // Correct answer is the student's last 4 digits
+            qrVerifyCorrect = s.last4;
+            // Generate 2 wrong 4-digit codes
+            let wrong1, wrong2;
+            do { wrong1 = String(Math.floor(Math.random() * 9000) + 1000); } while (wrong1 === qrVerifyCorrect);
+            do { wrong2 = String(Math.floor(Math.random() * 9000) + 1000); } while (wrong2 === qrVerifyCorrect || wrong2 === wrong1);
+
+            // Shuffle 3 choices
+            const choices = [qrVerifyCorrect, wrong1, wrong2];
+            for (let i = choices.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [choices[i], choices[j]] = [choices[j], choices[i]];
+            }
+
+            document.getElementById('qrVerifyTitle').textContent = `${s.name}`;
+            document.getElementById('qrVerifyCode').textContent = '';
+            document.getElementById('qrVerifyCode').style.display = 'none';
+            const choicesDiv = document.getElementById('qrVerifyChoices');
+            choicesDiv.innerHTML = `<p style="color:#94a3b8;font-size:0.85rem;margin-bottom:12px">Select your last 4 digits of student number:</p>` +
+                choices.map(c =>
+                    `<button class="modal-btn" style="background:#1e293b;color:#e2e8f0;border:2px solid #334155;font-size:1.5rem;padding:16px 28px;min-width:90px" onclick="checkQRVerify('${c}')">${c}</button>`
+                ).join('');
+            document.getElementById('qrVerifyModal').classList.add('active');
+        }
+
+        async function checkQRVerify(chosen) {
+            const s = students[qrVerifyTarget];
+            if (chosen === qrVerifyCorrect) {
+                // Correct — record attendance
+                const ts = getNowTimestamp('qr code');
+                s.timestamps.push(ts);
+                await saveActiveCourse();
+                playBeep();
+                speakName(s.name);
+                setStatus(`${s.name} — attendance recorded`, 'success');
+                renderList(s.id, 'attend-highlight');
+                scrollToRow(s.id);
+            } else {
+                // Wrong
+                playBoo();
+                setStatus(`Wrong code — ${s.name} not recorded`, 'error');
+            }
+            closeQRVerify();
+        }
+
+        function closeQRVerify() {
+            document.getElementById('qrVerifyModal').classList.remove('active');
+            qrVerifyTarget = null;
+            qrVerifyCorrect = null;
+        }
+
+        // ---- Registration method choice ----
+        function chooseRegMethod(method) {
+            document.getElementById('regMethodModal').classList.remove('active');
+            const id = registerTarget;
+            const s = students[id];
+            if (method === 'nfc') {
+                if (!s.consented) {
+                    document.getElementById('consentMsg').textContent =
+                        `${s.name}, do you consent to register your NFC card for attendance tracking in this course?`;
+                    document.getElementById('consentModal').classList.add('active');
+                } else {
+                    startNFCScan('register', id);
+                }
+            } else if (method === 'qr') {
+                startQRScan('register', id);
+            }
+        }
+
+        // ---- Attendance History ----
+        function showHistory(id) {
+            const s = students[id];
+            document.getElementById('historyTitle').textContent = `${s.name}${s.studentNo ? ' (' + s.studentNo + ')' : ''} — Attendance Record`;
+            const list = document.getElementById('historyList');
+            if (s.timestamps.length === 0) {
+                list.innerHTML = '<div style="color:#64748b;text-align:center">No attendance records</div>';
+            } else {
+                // Get unique dates with remarks, convert to MMDDYYYY
+                const entries = s.timestamps.map(ts => {
+                    const display = getTimestampDisplay(ts);
+                    const remark = getTimestampRemark(ts);
+                    const parts = display.split(' ');
+                    const dateParts = parts[0].split('-'); // YYYY-MM-DD
+                    const mmddyyyy = dateParts[1] + dateParts[2] + dateParts[0];
+                    const time = parts[1] || '';
+                    const remarkTag = remark && ['nfc','qr code','manual'].includes(remark) ? `<span class="remark-tag remark-${remark}">${remark}</span>` : '';
+                    return `<div class="h-date">${mmddyyyy} ${time} ${remarkTag}</div>`;
+                });
+                list.innerHTML = entries.join('');
+            }
+            document.getElementById('historyModal').classList.add('active');
+        }
+
+        // ---- Re-register (auth protected) ----
+        function onReregisterClick(id) {
+            requireAuth('Re-register NFC/QR', () => {
+                const s = students[id];
+                document.getElementById('reregisterMsg').textContent =
+                    `Re-register for ${s.name}? Current card/code (${s.nfcSerial.slice(-8)}) will be removed.`;
+                registerTarget = id;
+                document.getElementById('reregisterModal').classList.add('active');
+            });
+        }
+
+        function closeConsentModal() {
+            document.getElementById('consentModal').classList.remove('active');
+        }
+        async function confirmConsent() {
+            closeConsentModal();
+            const s = students[registerTarget];
+            s.consented = true;
+            s.consentedAt = getNowTimestamp();
+            await saveActiveCourse();
+            renderList(s.id, 'attend-highlight');
+            startNFCScan('register', registerTarget);
+        }
+
+        function closeModal() {
+            document.getElementById('reregisterModal').classList.remove('active');
+        }
+        async function confirmReregister(method) {
+            closeModal();
+            const s = students[registerTarget];
+            s.nfcSerial = '';
+            s.studentNo = '';
+            await saveActiveCourse();
+            renderList();
+            if (method === 'qr') startQRScan('register', registerTarget);
+            else startNFCScan('register', registerTarget);
+        }
+
+        // ---- Manual Attendance (double confirmation + professor card) ----
+        function manualAttend(studentId) {
+            if (!professorGlobal.nfcSerial) {
+                setStatus('Professor NFC not registered — open menu ☰ > Register Professor NFC', 'error');
+                playBoo();
+                return;
+            }
+            const s = students[studentId];
+            if (!confirm(`Record manual attendance for ${s.name}?`)) return;
+            if (!confirm(`Please confirm again: Mark ${s.name} as present without their NFC card?`)) return;
+            manualTarget = studentId;
+            startNFCScan('manual', studentId);
+        }
+
+        // ---- QR Code Scanner ----
+        let qrStream = null;
+        let qrAnimFrame = null;
+        let qrMode = null; // 'register', 'attend'
+        let qrRegisterTarget = null;
+
+        async function startQRScan(mode, targetId) {
+            qrMode = mode;
+            qrRegisterTarget = targetId;
+            const overlay = document.getElementById('qrOverlay');
+            const video = document.getElementById('qrVideo');
+            const label = document.getElementById('qrLabel');
+
+            if (mode === 'register') {
+                label.textContent = `Scan QR code for: ${students[targetId].name}`;
+            } else if (mode === 'attend') {
+                label.textContent = 'Scan QR code for attendance';
+            }
+
+            try {
+                qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = qrStream;
+                overlay.classList.add('active');
+                detectQRCode(video);
+            } catch (e) {
+                setStatus('Camera access denied', 'error');
+                playBoo();
+            }
+        }
+
+        function detectQRCode(video) {
+            if (!('BarcodeDetector' in window)) {
+                stopQRScan();
+                const code = prompt('BarcodeDetector not supported. Enter code manually:');
+                if (code) handleQRResult(code);
+                return;
+            }
+            const detector = new BarcodeDetector({ formats: ['qr_code'] });
+
+            function scan() {
+                if (!qrStream) return;
+                detector.detect(video).then(codes => {
+                    if (codes.length > 0) {
+                        const value = codes[0].rawValue;
+                        stopQRScan();
+                        handleQRResult(value);
+                        return;
+                    }
+                    qrAnimFrame = requestAnimationFrame(scan);
+                }).catch(() => {
+                    qrAnimFrame = requestAnimationFrame(scan);
+                });
+            }
+            qrAnimFrame = requestAnimationFrame(scan);
+        }
+
+        function stopQRScan() {
+            if (qrAnimFrame) { cancelAnimationFrame(qrAnimFrame); qrAnimFrame = null; }
+            if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+            document.getElementById('qrVideo').srcObject = null;
+            document.getElementById('qrOverlay').classList.remove('active');
+        }
+
+        async function handleQRResult(code) {
+            // Validate QR content
+            if (!code || code.length > 500) {
+                playBoo();
+                setStatus('Invalid QR code', 'error');
+                return;
+            }
+            code = code.trim();
+            if (qrMode === 'register') {
+                const s = students[qrRegisterTarget];
+                const existing = students.find(st => st.nfcSerial === code && st.id !== s.id);
+                if (existing) {
+                    playBoo();
+                    setStatus(`QR code already registered to ${existing.name}!`, 'error');
+                    return;
+                }
+                const ts = getNowTimestamp('qr code');
+                s.nfcSerial = code;
+                s.studentNo = code; // save QR content as student number
+                s.timestamps.push(ts);
+                s.consented = true;
+                await saveActiveCourse();
+                playBeep();
+                speakName(s.name);
+                setStatus(`Registered QR for ${s.name} (${code})`, 'success');
+                renderList(s.id, 'attend-highlight');
+
+            } else if (qrMode === 'attend') {
+                const found = students.find(s => s.nfcSerial === code);
+                if (found) {
+                    const ts = getNowTimestamp('qr code');
+                    found.timestamps.push(ts);
+                    await saveActiveCourse();
+                    playBeep();
+                    speakName(found.name);
+                    setStatus(`Attendance: ${found.name} | QR: ${code}`, 'success');
+                    renderList(found.id, 'attend-highlight');
+                    scrollToRow(found.id);
+                } else {
+                    playBoo();
+                    setStatus(`QR not registered | Content: ${code}`, 'error');
+                }
+
+            } else if (qrMode === 'prof-register') {
+                await saveProfRegistration(code, 'qr');
+
+            } else if (qrMode === 'welcome-register') {
+                await showWelcomeScreen(code, 'qr');
+
+            } else if (qrMode === 'auth') {
+                if (code === professorGlobal.nfcSerial) {
+                    playBeep();
+                    speakName(professorGlobal.name || 'Professor');
+                    setStatus('Authorized by professor', 'success');
+                    const cb = window._qrAuthCallback;
+                    window._qrAuthCallback = null;
+                    if (cb) cb();
+                } else {
+                    playBoo();
+                    setStatus("Wrong QR code — does not match professor's registered code", 'error');
+                    window._qrAuthCallback = null;
+                }
+
+            }
+            qrMode = null;
+            qrRegisterTarget = null;
+        }
+
+        // ---- Mode switching ----
+        function setMode(mode) {
+            attendMode = mode;
+            updateModeButtons();
+            if (!activeCourse) { setStatus('No course loaded', 'error'); return; }
+            if (mode === 'find') {
+                setStatus('FIND mode — scan NFC card to locate student', 'info');
+                startNFCScan('find', null);
+            } else if (mode === 'nfc') {
+                setStatus('ATTEND NFC mode — scan NFC cards for attendance', 'info');
+                startNFCScan('attend', null);
+            } else if (mode === 'qr') {
+                setStatus('ATTEND CODE mode — tap student names to verify attendance', 'info');
+            }
+        }
+
+        function updateModeButtons() {
+            const btnFind = document.getElementById('btnFind');
+            const btnNFC = document.getElementById('btnNFC');
+            const btnQR = document.getElementById('btnQR');
+            btnFind.classList.toggle('mode-active', attendMode === 'find');
+            btnNFC.classList.toggle('mode-active', attendMode === 'nfc');
+            btnQR.classList.toggle('mode-active', attendMode === 'qr');
+            btnFind.textContent = (attendMode === 'find' ? '\u2713 ' : '') + 'Find';
+            btnNFC.textContent = (attendMode === 'nfc' ? '\u2713 ' : '') + 'Attend NFC';
+            btnQR.textContent = (attendMode === 'qr' ? '\u2713 ' : '') + 'Attend Code';
+        }
+
+        // ---- Clear All ----
+        function clearAll() {
+            if (!activeCourse) { setStatus('No course loaded', 'error'); return; }
+            requireAuth('Clear All Data for ' + courses[activeCourse].title, async () => {
+                students.forEach(s => { s.nfcSerial = ''; s.timestamps = []; if (s.id !== 0) s.consented = false; });
+                await saveActiveCourse();
+                playBeep();
+                setStatus('All NFC serials and timestamps cleared for ' + courses[activeCourse].title, 'success');
+                renderList();
+            });
+        }
+
+        // ---- Delete Course ----
+        function askDeleteCourse(key) {
+            deleteCourseTarget = key;
+            document.getElementById('deleteCourseMsg').textContent =
+                `Delete "${courses[key].title}" and all its data? This cannot be undone.`;
+            document.getElementById('deleteCourseModal').classList.add('active');
+        }
+        function closeDeleteCourseModal() {
+            document.getElementById('deleteCourseModal').classList.remove('active');
+            deleteCourseTarget = null;
+        }
+        async function confirmDeleteCourse() {
+            closeDeleteCourseModal();
+            requireAuth('Delete Course: ' + courses[deleteCourseTarget]?.title, async () => {
+                delete courses[deleteCourseTarget];
+                if (activeCourse === deleteCourseTarget) activeCourse = null;
+                saveCourses();
+                await loadActiveCourse();
+                updateTitle();
+                renderAll();
+                playBeep();
+                setStatus('Course deleted', 'success');
+            });
+        }
+
+        // ---- CSV Export ----
+        async function exportCSV() {
+            if (!activeCourse) { setStatus('No course loaded', 'error'); return; }
+            const c = courses[activeCourse];
+            let csv = `Course,${c.title}\nProfessor,${c.professor}\n\nName,Student No,Serial (encrypted),Consented,Consent Date,Timestamps (with remarks)\n`;
+            for (const s of students) {
+                const ts = s.timestamps.join('; ');
+                const encSerial = await encryptSerial(s.nfcSerial);
+                csv += `"${s.name}","${s.studentNo || ''}","${encSerial}","${s.consented ? 'Yes' : 'No'}","${s.consentedAt || ''}","${ts}"\n`;
+            }
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${c.title.replace(/\s+/g,'_')}_attendance_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            setStatus('CSV exported', 'success');
+        }
+
+        // ---- Upload handler ----
+        document.getElementById('uploadFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            // Read file first, then auth
+            const fr = new FileReader();
+            fr.onload = function(ev) {
+                const fileContent = ev.target.result;
+                e.target.value = '';
+                requireAuth('Upload Student List', async () => {
+                    const parsed = parseStudentFile(fileContent);
+                    if (!parsed) {
+                        setStatus('Invalid file. Need: line 1 = subject title, line 2 = professor, rest = students', 'error');
+                        playBoo();
+                        return;
+                    }
+                    await addCourse(parsed);
+                    // Register professor name globally from course file
+                    professorGlobal.name = parsed.professor;
+                    saveProfessor();
+                    await loadActiveCourse();
+                    updateTitle();
+                    renderAll();
+                    updateProfStatus();
+                    playBeep();
+                    setStatus(`Loaded "${parsed.title}" with ${parsed.studentNames.length} students`, 'success');
+                });
+            };
+            fr.readAsText(file);
+        });
+
+        // ---- Restore handler ----
+        document.getElementById('restoreFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const fr = new FileReader();
+            fr.onload = function(ev) {
+                const content = ev.target.result;
+                e.target.value = '';
+                requireAuth('Restore Backup', async () => {
+                    await restoreData(content);
+                });
+            };
+            fr.readAsText(file);
+        });
+
+        // ---- Util ----
+        function escapeHTML(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // ---- Init ----
+        if (!('NDEFReader' in window) && !isIOS) {
+            document.getElementById('unsupported').classList.remove('hidden');
+        }
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }
+
+        (async () => {
+            loadSettings();
+            // Set default mode based on device
+            if (isIOS) {
+                attendMode = 'qr';
+                settings.attendCode = true;
+            } else {
+                attendMode = settings.attendCode ? 'qr' : 'nfc';
+            }
+            updateToggleUI();
+            updateModeButtons();
+
+            // Hide NFC elements on iOS
+            if (isIOS) {
+                const profNFC = document.getElementById('menuProfNFC');
+                if (profNFC) profNFC.style.display = 'none';
+                const authNFC = document.getElementById('authNFCBtn');
+                if (authNFC) authNFC.style.display = 'none';
+                const welcomeNFC = document.getElementById('welcomeNFCBtn');
+                if (welcomeNFC) welcomeNFC.style.display = 'none';
+            }
+            serverMode = false;
+            updateModeIndicator();
+
+            loadCourses();
+
+            await loadActiveCourse();
+            updateTitle();
+            renderAll();
+            if (!professorGlobal.nfcSerial && Object.keys(courses).length === 0) {
+                // Fresh app — show welcome modal
+                document.getElementById('welcomeModal').classList.add('active');
+            } else if (!professorGlobal.nfcSerial) {
+                setStatus('Professor NFC not registered — open menu ☰ > Register Professor NFC', 'info');
+            } else if (Object.keys(courses).length === 0) {
+                setStatus('No course loaded — open menu ☰ > Upload Student List', 'info');
+            } else {
+                setStatus('Ready — tap Attend NFC or Attend Code to start', 'success');
+            }
+
+        })();
+    </script>
+</body>
+</html>
