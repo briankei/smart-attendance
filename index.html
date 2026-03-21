@@ -305,11 +305,13 @@
 
     <div class="student-list" id="studentList"></div>
 
-    <div class="footer">
+    <div class="footer" data-wm="QnJpYW5LZWk=">
         <div class="copyright">&copy; BrianKei</div>
         NFC/Code Smart Attendance<br>
         Minimum requirements: Chrome 89+ | Android 10+
     </div>
+    <span data-wm="QnJpYW5LZWk=" style="position:absolute;left:-9999px">cwk</span>
+    <span data-wm="QnJpYW5LZWk=" style="position:absolute;left:-9999px">NFC/Code Smart Attendance</span>
 
     <!-- Welcome / NFC setup modal -->
     <div class="modal-overlay" id="welcomeModal">
@@ -470,6 +472,29 @@
     </div>
 
     <script>
+        // ---- Copyright & Integrity Protection ----
+        const _0x1=[66,114,105,97,110,75,101,105];
+        const _0x2=[78,70,67,47,67,111,100,101,32,83,109,97,114,116,32,65,116,116,101,110,100,97,110,99,101];
+        const _c=String.fromCharCode;
+        const _a=()=>_0x1.map(c=>_c(c)).join('');
+        const _b=()=>_0x2.map(c=>_c(c)).join('');
+
+        function _vi() {
+            const a=_a(), b=_b();
+            const f=document.querySelector('.footer');
+            const cr=document.querySelector('.copyright');
+            if(!f||!cr){_vf();return;}
+            if(!cr.textContent.includes(a)||!f.textContent.includes(b)){_vf();return;}
+            const w=document.querySelectorAll('[data-wm]');
+            let v=0;
+            w.forEach(e=>{if(e.dataset.wm===btoa(a))v++;});
+            if(v<2){_vf();return;}
+        }
+
+        function _vf() {
+            document.body.innerHTML='<div style="background:#450a0a;color:#fca5a5;padding:40px;text-align:center;font-family:sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center"><div><h1>Integrity Check Failed</h1><p style="margin-top:16px;font-size:1.1rem">This application has been tampered with.<br>Copyright and author attribution must not be modified.</p><p style="margin-top:16px;color:#94a3b8">&copy; '+_a()+' | '+_b()+'</p></div></div>';
+        }
+
         const STORAGE_KEY = 'nfc_attendance_courses';
         let authCallback = null;
 
@@ -2007,6 +2032,7 @@
                 setStatus('Ready — tap Attend NFC or Attend Code to start', 'success');
             }
 
+            setTimeout(_vi, 1000);
         })();
     </script>
 </body>
