@@ -344,15 +344,15 @@
                 <div style="background:#0f172a;border-radius:6px;padding:8px 12px;margin:6px 0;font-family:monospace;font-size:0.8rem;color:#e2e8f0">
                     Line 1: Course Name<br>
                     Line 2: Professor Name<br>
-                    Line 3: Student Name,last4digits<br>
-                    Line 4: Student Name,last4digits<br>
+                    Line 3: Student Name,last4digits (or tab)<br>
+                    Line 4: Student Name,last4digits (or tab)<br>
                     ...
                 </div>
-                <p style="font-size:0.8rem;color:#64748b;margin-top:4px">Last 4 digits of student number are used for Attend Code verification.</p>
+                <p style="font-size:0.8rem;color:#64748b;margin-top:4px">Last 4 digits of student number are used for Attend Code verification. Name and digits can be separated by comma or tab.</p>
                 <p style="margin-top:4px">Example:</p>
                 <div style="background:#0f172a;border-radius:6px;padding:8px 12px;margin:6px 0;font-family:monospace;font-size:0.8rem;color:#e2e8f0">
                     AF5122 Business Analytics<br>
-                    Professor Peter Chan<br>
+                    Professor Brian K<br>
                     Chan Tai Man,1234<br>
                     Huang Xiao Fu,5678<br>
                     Lee Shian Lan,9012
@@ -845,8 +845,8 @@
         }
 
         // ---- Welcome NFC Setup ----
-        const WELCOME_MSG_PWA = 'Professor, all data is stored locally. No data will go online. Please upload your first course. The student list is a text file with short course name, professor name and list of students with last 4 digits of student number in each line.';
-        const WELCOME_MSG_BROWSER = 'Professor, all data is stored locally. No data will go online. Please install this app first. The student list is a text file with short course name, professor name and list of students with last 4 digits of student number in each line.';
+        const WELCOME_MSG_PWA = 'Professor, all data is stored locally. No data will go online. Please upload your first course. The student list is a text file with short course name, professor name and list of students with last 4 digits of student number separated by comma or tab in each line.';
+        const WELCOME_MSG_BROWSER = 'Professor, all data is stored locally. No data will go online. Please install this app first. The student list is a text file with short course name, professor name and list of students with last 4 digits of student number separated by comma or tab in each line.';
         function getWelcomeMsg() { return isPWA ? WELCOME_MSG_PWA : WELCOME_MSG_BROWSER; }
 
         function startWelcomeReg(method) {
@@ -914,7 +914,7 @@
                 <p style="color:#38bdf8;font-weight:600">${isPWA ? 'Upload student list. File format:' : 'Step 2: Upload student list. File format:'}</p>
                 <div style="background:#0f172a;border-radius:6px;padding:10px;margin:8px auto;font-family:monospace;font-size:0.8rem;color:#e2e8f0;text-align:left;max-width:250px">
                     AF5122 Business Analytics<br>
-                    Professor Peter Chan<br>
+                    Professor Brian K<br>
                     Chan Tai Man,1234<br>
                     Huang Xiao Fu,5678<br>
                     Lee Shian Lan,9012<br>
@@ -1233,7 +1233,7 @@
             const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
             if (lines.length < 2) return null;
             const students = lines.slice(2).map(line => {
-                const parts = line.split(',');
+                const parts = line.split(/[,\t]/);
                 return { name: parts[0].trim(), last4: (parts[1] || '').trim() };
             });
             return { title: lines[0], professor: lines[1], students: students };
