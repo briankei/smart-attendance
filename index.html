@@ -2061,6 +2061,20 @@
 
             loadCourses();
 
+            // Load sample course if professor is registered but no courses exist
+            if (professorGlobal.nfcSerial && Object.keys(courses).length === 0) {
+                await addCourse({
+                    title: 'AF1234 Business Analytics',
+                    students: [
+                        { name: 'Peter Adoby', last4: '1234' },
+                        { name: 'Peter Bai', last4: '5432' },
+                        { name: 'David Lim', last4: '9876' }
+                    ],
+                    professor: professorGlobal.name || 'Professor'
+                });
+                setStatus('Sample course loaded — try the attendance features', 'info');
+            }
+
             await loadActiveCourse();
             updateTitle();
             renderAll();
