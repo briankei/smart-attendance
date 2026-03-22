@@ -292,7 +292,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.5</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.6</div>
         </div>
     </div>
 
@@ -784,7 +784,7 @@
                 return;
             }
             const backup = {
-                version: 'v6.5',
+                version: 'v6.6',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -914,8 +914,8 @@
         }
 
         // ---- Welcome NFC Setup ----
-        const WELCOME_MSG_PWA = 'Professor, all data is stored locally. No data will go online. Please upload your first course. The student list is a text file with short course name, professor name and list of students with last 4 digits of student number separated by comma or tab in each line.';
-        const WELCOME_MSG_BROWSER = 'Professor, all data is stored locally. No data will go online. Please install this app first. The student list is a text file with short course name, professor name and list of students with last 4 digits of student number separated by comma or tab in each line.';
+        const WELCOME_MSG_PWA = 'Professor, all data is stored locally. No data will go online. You can import a course by uploading a student list file, or create a course interactively in this app by clicking on the menu. The student list is a text file with short course name, professor name and list of students with last 4 digits of student number separated by comma or tab in each line.';
+        const WELCOME_MSG_BROWSER = 'Professor, all data is stored locally. No data will go online. Please install this app first. You can import a course by uploading a student list file, or create a course interactively in this app by clicking on the menu. The student list is a text file with short course name, professor name and list of students with last 4 digits of student number separated by comma or tab in each line.';
         function getWelcomeMsg() { return isPWA ? WELCOME_MSG_PWA : WELCOME_MSG_BROWSER; }
 
         function startWelcomeReg(method) {
