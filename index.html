@@ -269,6 +269,7 @@
         <div class="menu-section">
             <div class="menu-section-title">Tools</div>
             <div class="menu-item" onclick="exportCSV();closeMenu()"><span class="mi-icon">&#128196;</span> Export CSV</div>
+            <div class="menu-item" onclick="closeMenu();createCourseUI()"><span class="mi-icon">&#128221;</span> Create Course</div>
             <div class="menu-item" onclick="closeMenu();document.getElementById('uploadFile').click()"><span class="mi-icon">&#128228;</span> Upload Student List</div>
             <div class="menu-item" onclick="shareBluetooth();closeMenu()"><span class="mi-icon">&#128225;</span> Share via Bluetooth</div>
             <div class="menu-item" onclick="closeMenu();requireAuth('Backup All Data',()=>backupData())"><span class="mi-icon">&#128190;</span> Backup All Data</div>
@@ -291,7 +292,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.3</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.4</div>
         </div>
     </div>
 
@@ -423,6 +424,22 @@
             <div id="qrVerifyChoices" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"></div>
             <div style="margin-top:12px">
                 <button class="modal-btn modal-cancel" onclick="closeQRVerify(false)">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Course modal -->
+    <div class="modal-overlay" id="createCourseModal">
+        <div class="modal" style="max-width:450px;text-align:left">
+            <h3 style="text-align:center">Create Course</h3>
+            <p style="font-size:0.8rem;color:#64748b;text-align:center;margin-bottom:12px">Enter course name, professor name, and student list (one per line: name,last4digits)</p>
+            <input type="text" id="ccCourseName" placeholder="Course name (e.g. AF1234 Business Analytics)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem">
+            <input type="text" id="ccProfName" placeholder="Professor name (e.g. Professor Mary Chen)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem">
+            <textarea id="ccStudents" placeholder="Peter Adoby,1234&#10;Peter Bai,5432&#10;David Lim,9876" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem;font-family:monospace;resize:vertical"></textarea>
+            <div id="ccError" style="color:#fca5a5;font-size:0.8rem;margin-bottom:8px"></div>
+            <div style="text-align:center">
+                <button class="modal-btn modal-confirm" onclick="submitCreateCourse()">Create</button>
+                <button class="modal-btn modal-cancel" onclick="document.getElementById('createCourseModal').classList.remove('active')">Cancel</button>
             </div>
         </div>
     </div>
@@ -763,7 +780,7 @@
                 return;
             }
             const backup = {
-                version: 'v6.3',
+                version: 'v6.4',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2000,6 +2017,48 @@
             a.click();
             URL.revokeObjectURL(url);
             setStatus('CSV exported', 'success');
+        }
+
+        // ---- Create Course ----
+        function createCourseUI() {
+            requireAuth('Create Course', () => {
+                document.getElementById('ccCourseName').value = '';
+                document.getElementById('ccProfName').value = professorGlobal.name || '';
+                document.getElementById('ccStudents').value = '';
+                document.getElementById('ccError').textContent = '';
+                document.getElementById('createCourseModal').classList.add('active');
+            });
+        }
+
+        async function submitCreateCourse() {
+            const courseName = document.getElementById('ccCourseName').value.trim();
+            const profName = document.getElementById('ccProfName').value.trim();
+            const studentsText = document.getElementById('ccStudents').value.trim();
+            const errEl = document.getElementById('ccError');
+
+            if (!courseName) { errEl.textContent = 'Course name is required'; return; }
+            if (!profName) { errEl.textContent = 'Professor name is required'; return; }
+            if (!studentsText) { errEl.textContent = 'Enter at least one student'; return; }
+
+            // Build text in student list file format and parse
+            const fileText = courseName + '\n' + profName + '\n' + studentsText;
+            const parsed = parseStudentFile(fileText);
+            if (!parsed || parsed.students.length === 0) {
+                errEl.textContent = 'Invalid student list format. Use: Name,last4digits (one per line)';
+                return;
+            }
+
+            await addCourse(parsed);
+            professorGlobal.name = parsed.professor;
+            saveProfessor();
+            await loadActiveCourse();
+            updateTitle();
+            renderAll();
+            updateProfStatus();
+
+            document.getElementById('createCourseModal').classList.remove('active');
+            playBeep();
+            setStatus(`Created "${parsed.title}" with ${parsed.students.length} students`, 'success');
         }
 
         // ---- Upload handler ----
