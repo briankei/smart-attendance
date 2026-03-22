@@ -291,7 +291,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.2</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.3</div>
         </div>
     </div>
 
@@ -763,7 +763,7 @@
                 return;
             }
             const backup = {
-                version: 'v6.2',
+                version: 'v6.3',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -1624,12 +1624,13 @@
 
         async function checkQRVerify(chosen) {
             const s = students[qrVerifyTarget];
+            const correct = qrVerifyCorrect;
             const wasQRMode = (attendMode === 'qrscan' || attendMode === 'qr-verify');
             document.getElementById('qrVerifyModal').classList.remove('active');
             qrVerifyTarget = null;
             qrVerifyCorrect = null;
 
-            if (chosen === qrVerifyCorrect) {
+            if (chosen === correct) {
                 // Correct — record attendance and save QR content
                 const ts = getNowTimestamp('qr code');
                 s.timestamps.push(ts);
