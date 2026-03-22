@@ -291,7 +291,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.1</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.2</div>
         </div>
     </div>
 
@@ -763,7 +763,7 @@
                 return;
             }
             const backup = {
-                version: 'v6.1',
+                version: 'v6.2',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -1554,12 +1554,10 @@
             if (attendMode === 'find') {
                 setStatus(`Find mode — scan NFC card to locate student`, 'info');
                 return;
-            } else if (attendMode === 'qrscan') {
-                setStatus('Scan QR code first using Attend QR button', 'info');
-                return;
-            } else if (attendMode === 'qr-verify') {
-                // QR already scanned, now verify student with 4-digit code
-                showQRVerify(id);
+            } else if (attendMode === 'qrscan' || attendMode === 'qr-verify') {
+                // Student taps name → open camera to scan their QR code
+                window._qrVerifyStudentId = id;
+                startQRScan('qr-student', id);
                 return;
             } else if (s.nfcSerial && attendMode === 'nfc') {
                 // NFC mode — must use NFC card, not name tap
@@ -1626,6 +1624,11 @@
 
         async function checkQRVerify(chosen) {
             const s = students[qrVerifyTarget];
+            const wasQRMode = (attendMode === 'qrscan' || attendMode === 'qr-verify');
+            document.getElementById('qrVerifyModal').classList.remove('active');
+            qrVerifyTarget = null;
+            qrVerifyCorrect = null;
+
             if (chosen === qrVerifyCorrect) {
                 // Correct — record attendance and save QR content
                 const ts = getNowTimestamp('qr code');
@@ -1646,18 +1649,24 @@
                 playBoo();
                 setStatus(`Wrong code — ${s.name} attendance failed`, 'error');
             }
-            closeQRVerify();
+
+            // Stay in qrscan mode
+            if (wasQRMode) {
+                attendMode = 'qrscan';
+                updateModeButtons();
+            }
         }
 
-        function closeQRVerify() {
+        function closeQRVerify(failed) {
             document.getElementById('qrVerifyModal').classList.remove('active');
             qrVerifyTarget = null;
             qrVerifyCorrect = null;
-            // Return to qrscan mode if was in qr-verify
-            if (attendMode === 'qr-verify') {
+            window._lastQRContent = null;
+            // Stay in qrscan mode
+            if (attendMode === 'qrscan' || attendMode === 'qr-verify') {
                 attendMode = 'qrscan';
                 updateModeButtons();
-                setStatus('Ready — scan next QR code', 'info');
+                setStatus('Attend QR mode — tap student name to scan and verify', 'info');
             }
         }
 
@@ -1882,13 +1891,21 @@
                 }
 
             } else if (qrMode === 'qr-attend') {
-                // Save QR content, then show student list for professor to pick student
-                window._lastQRContent = code;
-                playBeep();
-                setStatus(`QR scanned: ${code} — tap student name to verify attendance`, 'success');
-                // Switch to name-tap mode for next step
-                attendMode = 'qr-verify';
-                updateModeButtons();
+                // Legacy — redirect to student tap flow
+                setStatus('Tap student name to scan QR and verify', 'info');
+
+            } else if (qrMode === 'qr-student') {
+                // Student tapped name, QR scanned — save content and show verification
+                const id = window._qrVerifyStudentId;
+                if (id != null) {
+                    const s = students[id];
+                    window._lastQRContent = code;
+                    playBeep();
+                    setStatus(`QR saved for ${s.name}: ${code}`, 'success');
+                    // Show 4-digit verification
+                    showQRVerify(id);
+                }
+                window._qrVerifyStudentId = null;
             }
             qrMode = null;
             qrRegisterTarget = null;
@@ -1908,8 +1925,7 @@
             } else if (mode === 'qr') {
                 setStatus('ATTEND CODE mode — tap student names to verify attendance', 'info');
             } else if (mode === 'qrscan') {
-                setStatus('ATTEND QR mode — scan QR code then verify with code', 'info');
-                startQRScan('qr-attend', null);
+                setStatus('ATTEND QR mode — tap student name to scan and verify', 'info');
             }
         }
 
