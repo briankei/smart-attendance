@@ -1555,7 +1555,8 @@
                 setStatus(`Find mode — scan NFC card to locate student`, 'info');
                 return;
             } else if (attendMode === 'qrscan') {
-                setStatus(`QR scan mode — use Attend QR button to scan`, 'info');
+                // Show attend code verification, save QR content on success
+                showQRVerify(id);
                 return;
             } else if (s.nfcSerial && attendMode === 'nfc') {
                 // NFC mode — must use NFC card, not name tap
@@ -1624,12 +1625,18 @@
             const s = students[qrVerifyTarget];
             if (chosen === qrVerifyCorrect) {
                 // Correct — record attendance
-                const ts = getNowTimestamp('qr code');
+                const remark = (attendMode === 'qrscan') ? 'qr code' : 'qr code';
+                const ts = getNowTimestamp(remark);
                 s.timestamps.push(ts);
+                // Save QR content if available
+                if (window._lastQRContent) {
+                    s.studentNo = window._lastQRContent;
+                    window._lastQRContent = null;
+                }
                 await saveActiveCourse();
                 playBeep();
                 speakName(s.name);
-                setStatus(`${s.name} — attendance recorded`, 'success');
+                setStatus(`${s.name} — attendance recorded${s.studentNo ? ' | QR: ' + s.studentNo : ''}`, 'success');
                 renderList(s.id, 'attend-highlight');
                 scrollToRow(s.id);
             } else {
@@ -1867,17 +1874,10 @@
                 }
 
             } else if (qrMode === 'qr-attend') {
-                // Find student by QR code content (studentNo or nfcSerial)
-                const found = students.find(s => s.studentNo === code || s.nfcSerial === code || s.last4 === code);
-                if (found) {
-                    playBeep();
-                    setStatus(`QR scanned: ${found.name} — verify with code`, 'info');
-                    // Show attend code verification
-                    showQRVerify(found.id);
-                } else {
-                    playBoo();
-                    setStatus(`QR code not matched to any student | Content: ${code}`, 'error');
-                }
+                // Save QR content to the next student who verifies via attend code
+                window._lastQRContent = code;
+                playBeep();
+                setStatus(`QR saved: ${code} — now tap student name to verify`, 'success');
             }
             qrMode = null;
             qrRegisterTarget = null;
