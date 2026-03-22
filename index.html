@@ -255,6 +255,10 @@
                 Attend Code (for iPhone/no NFC)
                 <div class="toggle-switch" id="toggleAttendCode" onclick="toggleAttendCode()"></div>
             </div>
+            <div class="menu-toggle">
+                QR Code Scanning
+                <div class="toggle-switch" id="toggleQRScan" onclick="toggleQRScan()"></div>
+            </div>
         </div>
         <div class="menu-section">
             <div class="menu-section-title">Security</div>
@@ -287,7 +291,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v5.9</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.0</div>
         </div>
     </div>
 
@@ -295,6 +299,7 @@
         <button class="top-btn btn-find" id="btnFind" onclick="setMode('find')">Find</button>
         <button class="top-btn btn-attend" id="btnNFC" onclick="setMode('nfc')">&#10003; Attend NFC</button>
         <button class="top-btn btn-qr" id="btnQR" onclick="setMode('qr')">Attend Code</button>
+        <button class="top-btn" id="btnQRScan" onclick="setMode('qrscan')" style="background:linear-gradient(135deg,#ec4899,#be185d);color:#fff;display:none">Attend QR</button>
     </div>
     <input type="file" id="uploadFile" accept=".txt,.csv,.text" class="hidden">
     <input type="file" id="restoreFile" accept=".json" class="hidden">
@@ -517,7 +522,7 @@
         const PROF_KEY = 'nfc_professor';
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-        let settings = { announce: true, greeting: true, encourage: false, forceOffline: false, attendCode: isIOS };
+        let settings = { announce: true, greeting: true, encourage: false, forceOffline: false, attendCode: isIOS, qrScan: false };
         let professorGlobal = { name: '', nfcSerial: '' }; // global professor NFC, independent of courses
 
         function loadSettings() {
@@ -542,7 +547,9 @@
             document.getElementById('toggleGreeting').className = 'toggle-switch' + (settings.greeting ? ' on' : '');
             document.getElementById('toggleEncourage').className = 'toggle-switch' + (settings.encourage ? ' on' : '');
             document.getElementById('toggleAttendCode').className = 'toggle-switch' + (settings.attendCode ? ' on' : '');
+            document.getElementById('toggleQRScan').className = 'toggle-switch' + (settings.qrScan ? ' on' : '');
             updateAttendCodeUI();
+            updateQRScanUI();
         }
 
         function toggleAttendCode() {
@@ -578,6 +585,22 @@
                     btnQR.style.display = 'none';
                     if (attendMode === 'qr') setMode('nfc');
                 }
+            }
+        }
+
+        function toggleQRScan() {
+            settings.qrScan = !settings.qrScan;
+            saveSettings();
+            updateToggleUI();
+        }
+
+        function updateQRScanUI() {
+            const btnQRScan = document.getElementById('btnQRScan');
+            if (settings.qrScan) {
+                btnQRScan.style.display = '';
+            } else {
+                btnQRScan.style.display = 'none';
+                if (attendMode === 'qrscan') setMode(isIOS ? 'qr' : 'nfc');
             }
         }
 
@@ -740,7 +763,7 @@
                 return;
             }
             const backup = {
-                version: 'v5.9',
+                version: 'v6.0',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -1529,8 +1552,10 @@
         async function onStudentClick(id) {
             const s = students[id];
             if (attendMode === 'find') {
-                // Find mode — tapping name does nothing
                 setStatus(`Find mode — scan NFC card to locate student`, 'info');
+                return;
+            } else if (attendMode === 'qrscan') {
+                setStatus(`QR scan mode — use Attend QR button to scan`, 'info');
                 return;
             } else if (s.nfcSerial && attendMode === 'nfc') {
                 // NFC mode — must use NFC card, not name tap
@@ -1841,6 +1866,18 @@
                     window._qrAuthCallback = null;
                 }
 
+            } else if (qrMode === 'qr-attend') {
+                // Find student by QR code content (studentNo or nfcSerial)
+                const found = students.find(s => s.studentNo === code || s.nfcSerial === code || s.last4 === code);
+                if (found) {
+                    playBeep();
+                    setStatus(`QR scanned: ${found.name} — verify with code`, 'info');
+                    // Show attend code verification
+                    showQRVerify(found.id);
+                } else {
+                    playBoo();
+                    setStatus(`QR code not matched to any student | Content: ${code}`, 'error');
+                }
             }
             qrMode = null;
             qrRegisterTarget = null;
@@ -1859,6 +1896,9 @@
                 startNFCScan('attend', null);
             } else if (mode === 'qr') {
                 setStatus('ATTEND CODE mode — tap student names to verify attendance', 'info');
+            } else if (mode === 'qrscan') {
+                setStatus('ATTEND QR mode — scan QR code then verify with code', 'info');
+                startQRScan('qr-attend', null);
             }
         }
 
@@ -1866,12 +1906,15 @@
             const btnFind = document.getElementById('btnFind');
             const btnNFC = document.getElementById('btnNFC');
             const btnQR = document.getElementById('btnQR');
+            const btnQRScan = document.getElementById('btnQRScan');
             btnFind.classList.toggle('mode-active', attendMode === 'find');
             btnNFC.classList.toggle('mode-active', attendMode === 'nfc');
             btnQR.classList.toggle('mode-active', attendMode === 'qr');
+            btnQRScan.classList.toggle('mode-active', attendMode === 'qrscan');
             btnFind.textContent = (attendMode === 'find' ? '\u2713 ' : '') + 'Find';
             btnNFC.textContent = (attendMode === 'nfc' ? '\u2713 ' : '') + 'Attend NFC';
             btnQR.textContent = (attendMode === 'qr' ? '\u2713 ' : '') + 'Attend Code';
+            btnQRScan.textContent = (attendMode === 'qrscan' ? '\u2713 ' : '') + 'Attend QR';
         }
 
         // ---- Clear All ----
