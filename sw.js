@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BrianKei
 // All rights reserved. See LICENSE for terms.
-const CACHE_NAME = 'af5122-attendance-v6.0';
+const CACHE_NAME = 'af5122-attendance-v6.1';
 const ASSETS = [
   '/',
   '/index.html',
