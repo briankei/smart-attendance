@@ -255,7 +255,7 @@
                 Attend Code (for iPhone/no NFC)
                 <div class="toggle-switch" id="toggleAttendCode" onclick="toggleAttendCode()"></div>
             </div>
-            <div class="menu-toggle">
+            <div class="menu-toggle" id="menuQRScanToggle">
                 QR Code Scanning
                 <div class="toggle-switch" id="toggleQRScan" onclick="toggleQRScan()"></div>
             </div>
@@ -292,7 +292,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.4</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.5</div>
         </div>
     </div>
 
@@ -613,11 +613,15 @@
 
         function updateQRScanUI() {
             const btnQRScan = document.getElementById('btnQRScan');
-            if (settings.qrScan) {
+            if (isIOS) {
+                // iOS: QR scanning not available (camera permission issues in PWA)
+                btnQRScan.style.display = 'none';
+                if (attendMode === 'qrscan' || attendMode === 'qr-verify') setMode('qr');
+            } else if (settings.qrScan) {
                 btnQRScan.style.display = '';
             } else {
                 btnQRScan.style.display = 'none';
-                if (attendMode === 'qrscan') setMode(isIOS ? 'qr' : 'nfc');
+                if (attendMode === 'qrscan' || attendMode === 'qr-verify') setMode('nfc');
             }
         }
 
@@ -780,7 +784,7 @@
                 return;
             }
             const backup = {
-                version: 'v6.4',
+                version: 'v6.5',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2134,7 +2138,7 @@
             updateToggleUI();
             updateModeButtons();
 
-            // Hide NFC elements on iOS
+            // Hide NFC and QR scan elements on iOS
             if (isIOS) {
                 const profNFC = document.getElementById('menuProfNFC');
                 if (profNFC) profNFC.style.display = 'none';
@@ -2142,6 +2146,8 @@
                 if (authNFC) authNFC.style.display = 'none';
                 const welcomeNFC = document.getElementById('welcomeNFCBtn');
                 if (welcomeNFC) welcomeNFC.style.display = 'none';
+                const qrToggle = document.getElementById('menuQRScanToggle');
+                if (qrToggle) qrToggle.style.display = 'none';
             }
             serverMode = false;
             updateModeIndicator();
