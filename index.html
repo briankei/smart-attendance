@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="author" content="cwk">
     <meta name="copyright" content="Copyright 2026 kcw. All rights reserved.">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; media-src 'self' blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://briankei.goatcounter.com; connect-src 'self' https://briankei.goatcounter.com; manifest-src 'self'; media-src 'self' blob:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NFC/Code Smart Attendance PWA</title>
     <link rel="manifest" href="manifest.json">
@@ -307,7 +307,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.9</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.0</div>
         </div>
     </div>
 
@@ -922,7 +922,7 @@
                 return;
             }
             const backup = {
-                version: 'v6.9',
+                version: 'v7.0',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2682,5 +2682,6 @@
             setTimeout(_vi, 1000);
         })();
     </script>
+    <script data-goatcounter="https://briankei.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>

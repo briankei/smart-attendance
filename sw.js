@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BrianKei
 // All rights reserved. See LICENSE for terms.
-const CACHE_NAME = 'smart-attendance-v6.9';
+const CACHE_NAME = 'smart-attendance-v7.0';
 const ASSETS = [
   '/',
   '/index.html',
