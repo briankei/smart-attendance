@@ -25,6 +25,7 @@
         <li>Student names (uploaded by professor)</li>
         <li>Last 4 digits of student numbers (uploaded by professor)</li>
         <li>NFC card serial numbers (with student consent)</li>
+        <li>QR code content (when scanned for attendance)</li>
         <li>Attendance timestamps</li>
     </ul>
 
@@ -34,20 +35,26 @@
     <h2>Data Security</h2>
     <ul>
         <li>NFC serial numbers are encrypted using AES-256-GCM before storage</li>
-        <li>Professor authentication is required for administrative actions</li>
+        <li>Professor authentication (NFC card or password) is required for administrative actions</li>
         <li>Backup files are encrypted with a user-provided passphrase</li>
     </ul>
 
     <h2>Consent</h2>
     <p>Students are asked for explicit consent before their NFC card serial number is recorded. Consent is timestamped and recorded.</p>
 
+    <h2>Data Export</h2>
+    <p>Attendance data can be exported as CSV files or Blackboard-compatible format. Exported files are saved to the device and may leave the device when shared by the user via Bluetooth, email, or other sharing methods.</p>
+
     <h2>Data Deletion</h2>
-    <p>The professor can delete all data at any time using the App Reset function. Students can request removal of their data from the professor.</p>
+    <p>The professor can delete all data at any time using the App Reset function. Individual course data can be removed via the menu. Students can request removal of their data from the professor.</p>
 
     <h2>Third-Party Services</h2>
-    <p>The app does not use any third-party analytics, advertising, or tracking services. No data leaves the device.</p>
+    <p>The app does not use any third-party analytics, advertising, or tracking services. No data leaves the device automatically.</p>
+
+    <h2>Children's Privacy</h2>
+    <p>This app is designed for use by educators and adult students (18+). It is not directed at children under 13.</p>
 
     <h2>Contact</h2>
-    <p>For questions about this privacy policy, contact the app administrator (professor).</p>
+    <p>For questions about this privacy policy, contact: <a href="mailto:briankei@gmail.com" style="color:#38bdf8">briankei@gmail.com</a></p>
 </body>
 </html>

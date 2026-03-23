@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="author" content="cwk">
-    <meta name="copyright" content="Copyright 2026 kcw. All rights reserved.">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://briankei.goatcounter.com; connect-src 'self' https://briankei.goatcounter.com; manifest-src 'self'; media-src 'self' blob:;">
+    <meta name="copyright" content="Copyright 2026 cwk. All rights reserved.">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; media-src 'self' blob:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NFC/Code Smart Attendance PWA</title>
     <link rel="manifest" href="manifest.json">
@@ -307,7 +307,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.0</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.1</div>
         </div>
     </div>
 
@@ -327,13 +327,13 @@
 
     <div class="student-list" id="studentList"></div>
 
-    <div class="footer" data-wm="a2N3">
-        <div class="copyright">&copy; kcw</div>
+    <div class="footer" data-wm="Y3dr">
+        <div class="copyright">&copy; cwk</div>
         NFC/Code Smart Attendance<br>
         Minimum requirements: Chrome 89+ | Android 10+
     </div>
-    <span data-wm="a2N3" style="position:absolute;left:-9999px">cwk</span>
-    <span data-wm="a2N3" style="position:absolute;left:-9999px">NFC/Code Smart Attendance</span>
+    <span data-wm="Y3dr" style="position:absolute;left:-9999px">cwk</span>
+    <span data-wm="Y3dr" style="position:absolute;left:-9999px">NFC/Code Smart Attendance</span>
 
     <!-- Welcome / NFC setup modal -->
     <div class="modal-overlay" id="welcomeModal">
@@ -633,7 +633,7 @@
 
     <script>
         // ---- Copyright & Integrity Protection ----
-        const _0x1=[107,99,119];
+        const _0x1=[99,119,107];
         const _0x2=[78,70,67,47,67,111,100,101,32,83,109,97,114,116,32,65,116,116,101,110,100,97,110,99,101];
         const _c=String.fromCharCode;
         const _a=()=>_0x1.map(c=>_c(c)).join('');
@@ -922,7 +922,7 @@
                 return;
             }
             const backup = {
-                version: 'v7.0',
+                version: 'v7.1',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2682,6 +2682,6 @@
             setTimeout(_vi, 1000);
         })();
     </script>
-    <script data-goatcounter="https://briankei.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+
 </body>
 </html>
