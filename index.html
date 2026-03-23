@@ -306,7 +306,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.7</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.8</div>
         </div>
     </div>
 
@@ -448,6 +448,9 @@
         <div class="modal">
             <h3>Games</h3>
             <div class="menu-item" onclick="closeGames();openWheelOfFortune()"><span class="mi-icon">&#127905;</span> Wheel of Fortune</div>
+            <div class="menu-item" onclick="closeGames();openRandomGroups()"><span class="mi-icon">&#128101;</span> Random Groups</div>
+            <div class="menu-item" onclick="closeGames();openRandomOrder()"><span class="mi-icon">&#128256;</span> Random Order</div>
+            <div class="menu-item" onclick="closeGames();openCountdown()"><span class="mi-icon">&#9201;</span> Countdown Timer</div>
             <div style="margin-top:12px">
                 <button class="modal-btn modal-cancel" onclick="closeGames()">Close</button>
             </div>
@@ -467,6 +470,69 @@
             <div style="display:flex;gap:8px;justify-content:center">
                 <button class="modal-btn modal-confirm" style="background:linear-gradient(135deg,#f97316,#ea580c);font-size:1.1rem;padding:14px 36px" onclick="playWheel()">Play</button>
                 <button class="modal-btn modal-cancel" onclick="closeWheel()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Random Groups modal -->
+    <div class="modal-overlay" id="groupsModal">
+        <div class="modal" style="max-width:450px;text-align:left">
+            <h3 style="text-align:center;color:#6366f1">Random Groups</h3>
+            <div style="text-align:center;margin-bottom:12px">
+                <label style="color:#94a3b8;font-size:0.85rem">Group size:
+                    <select id="groupSize" style="padding:6px 12px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;margin-left:6px">
+                        <option value="2">2</option>
+                        <option value="3" selected>3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </label>
+                <button class="modal-btn modal-confirm" style="background:#6366f1;margin-left:8px" onclick="generateGroups()">Shuffle</button>
+            </div>
+            <div id="groupsResult" style="max-height:350px;overflow-y:auto"></div>
+            <div style="text-align:center;margin-top:12px">
+                <button class="modal-btn modal-cancel" onclick="document.getElementById('groupsModal').classList.remove('active')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Random Order modal -->
+    <div class="modal-overlay" id="orderModal">
+        <div class="modal" style="max-width:400px;text-align:left">
+            <h3 style="text-align:center;color:#10b981">Random Order</h3>
+            <div style="text-align:center;margin-bottom:12px">
+                <button class="modal-btn modal-confirm" style="background:#10b981" onclick="generateOrder()">Shuffle</button>
+            </div>
+            <div id="orderResult" style="max-height:350px;overflow-y:auto"></div>
+            <div style="text-align:center;margin-top:12px">
+                <button class="modal-btn modal-cancel" onclick="document.getElementById('orderModal').classList.remove('active')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Countdown Timer modal -->
+    <div class="modal-overlay" id="countdownModal">
+        <div class="modal" style="max-width:350px">
+            <h3 style="color:#f59e0b">Countdown Timer</h3>
+            <div id="countdownDisplay" style="font-size:4rem;font-weight:700;color:#e2e8f0;margin:20px 0;font-family:monospace">05:00</div>
+            <div style="margin-bottom:16px">
+                <label style="color:#94a3b8;font-size:0.85rem">Minutes:
+                    <select id="countdownMins" style="padding:6px 12px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;margin-left:6px">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="5" selected>5</option>
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                    </select>
+                </label>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:center">
+                <button class="modal-btn modal-confirm" style="background:#f59e0b" id="countdownStartBtn" onclick="toggleCountdown()">Start</button>
+                <button class="modal-btn" style="background:#334155;color:#e2e8f0" onclick="resetCountdown()">Reset</button>
+                <button class="modal-btn modal-cancel" onclick="closeCountdown()">Close</button>
             </div>
         </div>
     </div>
@@ -827,7 +893,7 @@
                 return;
             }
             const backup = {
-                version: 'v6.7',
+                version: 'v6.8',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2156,6 +2222,166 @@
                     setTimeout(() => { nameEl.style.color = '#f97316'; }, 3000);
                 }
             }, 100); // 100ms per spin = 3 seconds total
+        }
+
+        // ---- Random Groups ----
+        function openRandomGroups() {
+            document.getElementById('groupsResult').innerHTML = '<div style="color:#64748b;text-align:center;padding:20px">Tap Shuffle to create groups</div>';
+            document.getElementById('groupsModal').classList.add('active');
+        }
+
+        function generateGroups() {
+            const size = parseInt(document.getElementById('groupSize').value);
+            const studentList = students.filter((s, i) => i > 0);
+            // Shuffle
+            const shuffled = [...studentList];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            // Split into groups
+            const groups = [];
+            for (let i = 0; i < shuffled.length; i += size) {
+                groups.push(shuffled.slice(i, i + size));
+            }
+            // Render
+            let html = '';
+            groups.forEach((group, gi) => {
+                const colors = ['#6366f1','#10b981','#f59e0b','#ec4899','#0ea5e9','#8b5cf6','#f97316','#14b8a6'];
+                const color = colors[gi % colors.length];
+                html += `<div style="background:#0f172a;border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${color}">`;
+                html += `<div style="color:${color};font-weight:600;font-size:0.8rem;margin-bottom:4px">Group ${gi + 1}</div>`;
+                group.forEach(s => {
+                    html += `<div style="color:#e2e8f0;padding:2px 0;font-size:0.9rem">${escapeHTML(s.name)}</div>`;
+                });
+                html += '</div>';
+            });
+            document.getElementById('groupsResult').innerHTML = html;
+            playBeep();
+        }
+
+        // ---- Random Order ----
+        function openRandomOrder() {
+            document.getElementById('orderResult').innerHTML = '<div style="color:#64748b;text-align:center;padding:20px">Tap Shuffle to randomize order</div>';
+            document.getElementById('orderModal').classList.add('active');
+        }
+
+        function generateOrder() {
+            const studentList = students.filter((s, i) => i > 0);
+            const shuffled = [...studentList];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            let html = '';
+            shuffled.forEach((s, i) => {
+                html += `<div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #1e293b">
+                    <span style="color:#10b981;font-weight:700;width:30px;font-size:0.9rem">${i + 1}.</span>
+                    <span style="color:#e2e8f0;font-size:0.9rem">${escapeHTML(s.name)}</span>
+                </div>`;
+            });
+            document.getElementById('orderResult').innerHTML = html;
+            playBeep();
+        }
+
+        // ---- Countdown Timer ----
+        let countdownInterval = null;
+        let countdownSeconds = 0;
+        let countdownRunning = false;
+
+        function openCountdown() {
+            resetCountdown();
+            document.getElementById('countdownModal').classList.add('active');
+        }
+
+        function closeCountdown() {
+            if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+            countdownRunning = false;
+            document.getElementById('countdownModal').classList.remove('active');
+        }
+
+        function resetCountdown() {
+            if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+            countdownRunning = false;
+            const mins = parseInt(document.getElementById('countdownMins').value);
+            countdownSeconds = mins * 60;
+            updateCountdownDisplay();
+            document.getElementById('countdownStartBtn').textContent = 'Start';
+            document.getElementById('countdownStartBtn').style.background = '#f59e0b';
+        }
+
+        function toggleCountdown() {
+            if (countdownRunning) {
+                // Pause
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+                countdownRunning = false;
+                document.getElementById('countdownStartBtn').textContent = 'Resume';
+                document.getElementById('countdownStartBtn').style.background = '#10b981';
+            } else {
+                // Start/Resume
+                if (countdownSeconds <= 0) {
+                    const mins = parseInt(document.getElementById('countdownMins').value);
+                    countdownSeconds = mins * 60;
+                }
+                countdownRunning = true;
+                document.getElementById('countdownStartBtn').textContent = 'Pause';
+                document.getElementById('countdownStartBtn').style.background = '#dc2626';
+                countdownInterval = setInterval(() => {
+                    countdownSeconds--;
+                    updateCountdownDisplay();
+                    if (countdownSeconds <= 0) {
+                        clearInterval(countdownInterval);
+                        countdownInterval = null;
+                        countdownRunning = false;
+                        document.getElementById('countdownStartBtn').textContent = 'Start';
+                        document.getElementById('countdownStartBtn').style.background = '#f59e0b';
+                        // Alarm
+                        countdownAlarm();
+                    }
+                }, 1000);
+            }
+        }
+
+        function updateCountdownDisplay() {
+            const mins = Math.floor(countdownSeconds / 60);
+            const secs = countdownSeconds % 60;
+            const display = document.getElementById('countdownDisplay');
+            display.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            if (countdownSeconds <= 10 && countdownSeconds > 0) {
+                display.style.color = '#dc2626';
+            } else if (countdownSeconds <= 0) {
+                display.style.color = '#dc2626';
+            } else {
+                display.style.color = '#e2e8f0';
+            }
+        }
+
+        function countdownAlarm() {
+            const ctx = getAudioCtx();
+            // Play 3 alarm beeps
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.connect(g); g.connect(ctx.destination);
+                    o.frequency.value = 1000;
+                    o.type = 'sine';
+                    g.gain.value = 0.4;
+                    o.start();
+                    o.stop(ctx.currentTime + 0.3);
+                }, i * 500);
+            }
+            // Announce "Time's up"
+            setTimeout(() => {
+                if ('speechSynthesis' in window) {
+                    const msg = new SpeechSynthesisUtterance("Time's up!");
+                    msg.lang = 'en-US';
+                    msg.rate = 0.9;
+                    msg.volume = 1;
+                    speechSynthesis.speak(msg);
+                }
+            }, 1800);
         }
 
         // ---- Create Course ----
