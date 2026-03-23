@@ -283,6 +283,7 @@
         <div class="menu-section">
             <div class="menu-section-title">Tools</div>
             <div class="menu-item" onclick="exportCSV();closeMenu()"><span class="mi-icon">&#128196;</span> Export CSV</div>
+            <div class="menu-item" onclick="exportBlackboard();closeMenu()"><span class="mi-icon">&#127891;</span> Export for Blackboard</div>
             <div class="menu-item" onclick="closeMenu();createCourseUI()"><span class="mi-icon">&#128221;</span> Create Course</div>
             <div class="menu-item" onclick="closeMenu();document.getElementById('uploadFile').click()"><span class="mi-icon">&#128228;</span> Upload Student List</div>
             <div class="menu-item" onclick="shareBluetooth();closeMenu()"><span class="mi-icon">&#128225;</span> Share via Bluetooth</div>
@@ -306,7 +307,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.8</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v6.9</div>
         </div>
     </div>
 
@@ -506,6 +507,34 @@
             <div id="orderResult" style="max-height:350px;overflow-y:auto"></div>
             <div style="text-align:center;margin-top:12px">
                 <button class="modal-btn modal-cancel" onclick="document.getElementById('orderModal').classList.remove('active')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blackboard Export modal -->
+    <div class="modal-overlay" id="bbExportModal">
+        <div class="modal" style="max-width:400px;text-align:left">
+            <h3 style="text-align:center;color:#10b981">Export for Blackboard</h3>
+            <div style="margin-bottom:12px">
+                <label style="color:#94a3b8;font-size:0.85rem">Export type:</label>
+                <select id="bbExportType" style="width:100%;padding:8px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;margin-top:4px" onchange="updateBBPreview()">
+                    <option value="today">Today's attendance</option>
+                    <option value="cumulative">Cumulative attendance %</option>
+                </select>
+            </div>
+            <div style="margin-bottom:12px">
+                <label style="color:#94a3b8;font-size:0.85rem">Score for present:</label>
+                <input type="number" id="bbScore" value="100" min="0" max="100" style="width:80px;padding:8px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;margin-left:8px">
+            </div>
+            <div style="margin-bottom:12px">
+                <label style="color:#94a3b8;font-size:0.85rem">Column name:</label>
+                <input type="text" id="bbColName" style="width:100%;padding:8px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;margin-top:4px">
+            </div>
+            <p style="font-size:0.75rem;color:#64748b;margin-bottom:8px">Preview:</p>
+            <div id="bbPreview" style="background:#0f172a;border-radius:6px;padding:8px;font-family:monospace;font-size:0.7rem;color:#94a3b8;max-height:120px;overflow-y:auto;margin-bottom:12px"></div>
+            <div style="text-align:center">
+                <button class="modal-btn modal-confirm" onclick="downloadBBExport()">Download</button>
+                <button class="modal-btn modal-cancel" onclick="document.getElementById('bbExportModal').classList.remove('active')">Cancel</button>
             </div>
         </div>
     </div>
@@ -893,7 +922,7 @@
                 return;
             }
             const backup = {
-                version: 'v6.8',
+                version: 'v6.9',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2222,6 +2251,113 @@
                     setTimeout(() => { nameEl.style.color = '#f97316'; }, 3000);
                 }
             }, 100); // 100ms per spin = 3 seconds total
+        }
+
+        // ---- Blackboard Export ----
+        function exportBlackboard() {
+            if (!activeCourse) { setStatus('No course loaded', 'error'); return; }
+            const c = courses[activeCourse];
+            const today = getMMDDYYYY();
+            document.getElementById('bbColName').value = `Attendance ${today}`;
+            updateBBPreview();
+            document.getElementById('bbExportModal').classList.add('active');
+        }
+
+        function updateBBPreview() {
+            const type = document.getElementById('bbExportType').value;
+            const score = parseInt(document.getElementById('bbScore').value) || 100;
+            const colName = document.getElementById('bbColName').value || 'Attendance';
+            const preview = document.getElementById('bbPreview');
+
+            if (type === 'today') {
+                let csv = `Last Name,First Name,${colName} [Total Pts: ${score}]\n`;
+                students.forEach((s, i) => {
+                    if (i === 0) return;
+                    const parts = splitName(s.name);
+                    const attended = hasAttendedToday(s);
+                    csv += `${parts.last},${parts.first},${attended ? score : 0}\n`;
+                });
+                preview.textContent = csv;
+            } else {
+                // Cumulative — count unique dates attended
+                const allDates = new Set();
+                students.forEach((s, i) => {
+                    if (i === 0) return;
+                    s.timestamps.forEach(ts => {
+                        allDates.add(getTimestampDisplay(ts).split(' ')[0]);
+                    });
+                });
+                const totalSessions = allDates.size || 1;
+
+                let csv = `Last Name,First Name,${colName} [Total Pts: ${score}]\n`;
+                students.forEach((s, i) => {
+                    if (i === 0) return;
+                    const parts = splitName(s.name);
+                    const datesAttended = new Set();
+                    s.timestamps.forEach(ts => {
+                        datesAttended.add(getTimestampDisplay(ts).split(' ')[0]);
+                    });
+                    const pct = Math.round((datesAttended.size / totalSessions) * score);
+                    csv += `${parts.last},${parts.first},${pct}\n`;
+                });
+                preview.textContent = csv;
+            }
+        }
+
+        function splitName(fullName) {
+            const parts = fullName.trim().split(/\s+/);
+            if (parts.length === 1) return { first: parts[0], last: '' };
+            const last = parts[parts.length - 1];
+            const first = parts.slice(0, -1).join(' ');
+            return { first, last };
+        }
+
+        function downloadBBExport() {
+            const type = document.getElementById('bbExportType').value;
+            const score = parseInt(document.getElementById('bbScore').value) || 100;
+            const colName = document.getElementById('bbColName').value || 'Attendance';
+            const c = courses[activeCourse];
+
+            let csv = `Last Name,First Name,${colName} [Total Pts: ${score}]\n`;
+
+            if (type === 'today') {
+                students.forEach((s, i) => {
+                    if (i === 0) return;
+                    const parts = splitName(s.name);
+                    const attended = hasAttendedToday(s);
+                    csv += `"${parts.last}","${parts.first}",${attended ? score : 0}\n`;
+                });
+            } else {
+                const allDates = new Set();
+                students.forEach((s, i) => {
+                    if (i === 0) return;
+                    s.timestamps.forEach(ts => {
+                        allDates.add(getTimestampDisplay(ts).split(' ')[0]);
+                    });
+                });
+                const totalSessions = allDates.size || 1;
+                students.forEach((s, i) => {
+                    if (i === 0) return;
+                    const parts = splitName(s.name);
+                    const datesAttended = new Set();
+                    s.timestamps.forEach(ts => {
+                        datesAttended.add(getTimestampDisplay(ts).split(' ')[0]);
+                    });
+                    const pct = Math.round((datesAttended.size / totalSessions) * score);
+                    csv += `"${parts.last}","${parts.first}",${pct}\n`;
+                });
+            }
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${c.title.replace(/\s+/g, '_')}_blackboard_${getMMDDYYYY()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            document.getElementById('bbExportModal').classList.remove('active');
+            playBeep();
+            setStatus('Blackboard CSV exported', 'success');
         }
 
         // ---- Random Groups ----
