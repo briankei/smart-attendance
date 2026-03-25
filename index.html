@@ -307,7 +307,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.2</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.3</div>
         </div>
     </div>
 
@@ -922,7 +922,7 @@
                 return;
             }
             const backup = {
-                version: 'v7.2',
+                version: 'v7.3',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -1562,7 +1562,7 @@
 
                 row.innerHTML = `
                     <span class="student-num">${i}</span>
-                    <span class="student-name">${escapeHTML(s.name)}${s.studentNo ? '<span style="font-size:0.65rem;color:#64748b;margin-left:4px">' + escapeHTML(s.studentNo) + '</span>' : ''}${attended ? '<span class="check-mark">&#10003;</span>' : ''}</span>
+                    <span class="student-name">${escapeHTML(s.name)}${attended ? '<span class="check-mark">&#10003;</span>' : ''}</span>
                     ${manualBtn}${historyBtn}${reregBtn}
                     <span class="student-status">
                         ${nfcStatus}
