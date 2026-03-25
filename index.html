@@ -307,7 +307,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.1</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.2</div>
         </div>
     </div>
 
@@ -368,11 +368,11 @@
                 <div style="background:#0f172a;border-radius:6px;padding:8px 12px;margin:6px 0;font-family:monospace;font-size:0.8rem;color:#e2e8f0">
                     Line 1: Course Name<br>
                     Line 2: Professor Name<br>
-                    Line 3: Student Name,last4digits (or tab)<br>
-                    Line 4: Student Name,last4digits (or tab)<br>
+                    Line 3: Name,StudentNo (short format)<br>
+                    or: Name,StudentNo,NFC,ConsentDate<br>
                     ...
                 </div>
-                <p style="font-size:0.8rem;color:#64748b;margin-top:4px">Last 4 digits of student number are used for Attend Code verification. Name and digits can be separated by comma or tab.</p>
+                <p style="font-size:0.8rem;color:#64748b;margin-top:4px">Short format: name and last 4 digits only. Extended format: full student number, NFC serial, and consent date. Fields separated by comma or tab. Last 4 digits of student number are used for Attend Code verification.</p>
                 <p style="margin-top:4px">Example:</p>
                 <div style="background:#0f172a;border-radius:6px;padding:8px 12px;margin:6px 0;font-family:monospace;font-size:0.8rem;color:#e2e8f0">
                     AF1234 Business Analytics<br>
@@ -922,7 +922,7 @@
                 return;
             }
             const backup = {
-                version: 'v7.1',
+                version: 'v7.2',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -1441,7 +1441,20 @@
             if (lines.length < 2) return null;
             const students = lines.slice(2).map(line => {
                 const parts = line.split(/[,\t]/);
-                return { name: parts[0].trim(), last4: (parts[1] || '').trim() };
+                const name = (parts[0] || '').trim();
+                const studentNo = (parts[1] || '').trim();
+                const nfcSerial = (parts[2] || '').trim();
+                const consentDate = (parts[3] || '').trim();
+                // last4 is derived from full student number
+                const last4 = studentNo.length >= 4 ? studentNo.slice(-4) : studentNo;
+                return {
+                    name,
+                    last4,
+                    studentNo: studentNo,
+                    nfcSerial: nfcSerial,
+                    consented: nfcSerial ? true : false,
+                    consentedAt: consentDate
+                };
             });
             return { title: lines[0], professor: lines[1], students: students };
         }
@@ -1456,9 +1469,13 @@
                     if (existingMap[st.name]) {
                         const e = existingMap[st.name];
                         e.last4 = st.last4 || e.last4 || '';
+                        if (st.studentNo) e.studentNo = st.studentNo;
+                        if (st.nfcSerial) e.nfcSerial = st.nfcSerial;
+                        if (st.consented) e.consented = st.consented;
+                        if (st.consentedAt) e.consentedAt = st.consentedAt;
                         return e;
                     }
-                    return { name: st.name, nfcSerial: '', studentNo: '', last4: st.last4 || '', consented: false, consentedAt: '', timestamps: [] };
+                    return { name: st.name, nfcSerial: st.nfcSerial || '', studentNo: st.studentNo || '', last4: st.last4 || '', consented: st.consented || false, consentedAt: st.consentedAt || '', timestamps: [] };
                 });
                 existing.students = newStudents;
                 existing.professor = parsed.professor;
@@ -1469,7 +1486,7 @@
                     professor: parsed.professor,
                     professorNfc: '',
                     professorTimestamps: [],
-                    students: parsed.students.map(st => ({ name: st.name, nfcSerial: '', studentNo: '', last4: st.last4 || '', consented: false, consentedAt: '', timestamps: [] }))
+                    students: parsed.students.map(st => ({ name: st.name, nfcSerial: st.nfcSerial || '', studentNo: st.studentNo || '', last4: st.last4 || '', consented: st.consented || false, consentedAt: st.consentedAt || '', timestamps: [] }))
                 };
             }
             activeCourse = key;
