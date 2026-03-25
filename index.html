@@ -307,7 +307,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.4</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.5</div>
         </div>
     </div>
 
@@ -922,7 +922,7 @@
                 return;
             }
             const backup = {
-                version: 'v7.4',
+                version: 'v7.5',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2618,6 +2618,11 @@
             fr.onload = function(ev) {
                 const content = ev.target.result;
                 e.target.value = '';
+                const hasCourses = Object.keys(courses).length > 0;
+                if (hasCourses) {
+                    if (!confirm('WARNING: Restore will overwrite ALL current data.\n\nPlease export your courses first (Menu > Export CSV) before proceeding.\n\nContinue with restore?')) return;
+                    if (!confirm('FINAL CONFIRMATION: All current courses, attendance records, and settings will be replaced. This cannot be undone.\n\nAre you sure?')) return;
+                }
                 requireAuth('Restore Backup', async () => {
                     await restoreData(content);
                 });
