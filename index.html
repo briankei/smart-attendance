@@ -307,7 +307,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.3</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.4</div>
         </div>
     </div>
 
@@ -814,7 +814,7 @@
                 if (i === 0) return;
                 const attended = hasAttendedToday(s);
                 if (attended) count++;
-                text += `${i}. ${s.name}${s.studentNo ? ' (' + s.studentNo + ')' : ''} - ${attended ? 'Present' : 'Absent'}\n`;
+                text += `${i}. ${s.name} - ${attended ? 'Present' : 'Absent'}\n`;
             });
             text += `\nTotal: ${count}/${students.length - 1}`;
 
@@ -922,7 +922,7 @@
                 return;
             }
             const backup = {
-                version: 'v7.3',
+                version: 'v7.4',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -1817,7 +1817,7 @@
                 await saveActiveCourse();
                 playBeep();
                 speakName(s.name);
-                setStatus(`${s.name} — attendance recorded${s.studentNo ? ' | QR: ' + s.studentNo : ''}`, 'success');
+                setStatus(`${s.name} — attendance recorded`, 'success');
                 renderList(s.id, 'attend-highlight');
                 scrollToRow(s.id);
             } else {
@@ -1868,7 +1868,7 @@
         // ---- Attendance History ----
         function showHistory(id) {
             const s = students[id];
-            document.getElementById('historyTitle').textContent = `${s.name}${s.studentNo ? ' (' + s.studentNo + ')' : ''} — Attendance Record`;
+            document.getElementById('historyTitle').textContent = `${s.name} — Attendance Record`;
             const list = document.getElementById('historyList');
             if (s.timestamps.length === 0) {
                 list.innerHTML = '<div style="color:#64748b;text-align:center">No attendance records</div>';
