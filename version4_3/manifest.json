@@ -1,11 +1,11 @@
 {
-  "name": "NFC/Code Smart Attendance PWA",
-  "short_name": "Smart Attend",
+  "name": "School of Accounting and Finance, PolyU - Attendance",
+  "short_name": "AF/PolyU Attend",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
-  "description": "NFC/QR attendance system — bk",
+  "description": "NFC/QR attendance system — School of Accounting and Finance, PolyU",
   "icons": [
     {
       "src": "/icon-192.png",

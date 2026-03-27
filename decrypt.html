@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>NFC Serial Decryptor</title>
+    <style>
+        body { font-family: monospace; background: #0f172a; color: #e2e8f0; padding: 20px; max-width: 700px; margin: 0 auto; }
+        h1 { color: #38bdf8; }
+        textarea, input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: #e2e8f0; font-family: monospace; margin: 8px 0; }
+        button { padding: 10px 24px; background: #10b981; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        #output { white-space: pre-wrap; background: #1e293b; padding: 12px; border-radius: 8px; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <h1>NFC Serial Decryptor</h1>
+    <p>Step 1: Get key from device — open app in Chrome DevTools Console and run:<br>
+    <code style="color:#f59e0b">localStorage.getItem('nfc_enc_key')</code></p>
+
+    <label>Encryption Key (base64):</label>
+    <input type="text" id="encKey" placeholder="Paste the base64 key here">
+
+    <label>Paste encrypted CSV content:</label>
+    <textarea id="csvInput" rows="10" placeholder="Paste the full CSV content here"></textarea>
+
+    <button onclick="decryptCSV()">Decrypt</button>
+
+    <div id="output"></div>
+
+    <script>
+        async function decryptCSV() {
+            const keyB64 = document.getElementById('encKey').value.trim();
+            const csvText = document.getElementById('csvInput').value;
+            const output = document.getElementById('output');
+
+            if (!keyB64) { output.textContent = 'Error: Enter the encryption key'; return; }
+
+            try {
+                const rawKey = Uint8Array.from(atob(keyB64), c => c.charCodeAt(0));
+                const key = await crypto.subtle.importKey('raw', rawKey, 'AES-GCM', false, ['decrypt']);
+
+                const lines = csvText.split('\n');
+                const result = [];
+
+                for (const line of lines) {
+                    // Find encrypted values (base64:base64 pattern)
+                    const decryptedLine = await decryptLine(line, key);
+                    result.push(decryptedLine);
+                }
+
+                output.textContent = result.join('\n');
+            } catch(e) {
+                output.textContent = 'Error: ' + e.message;
+            }
+        }
+
+        async function decryptLine(line, key) {
+            // Match patterns like "ivBase64:ciphertextBase64" in CSV fields
+            const parts = line.split(',');
+            const decrypted = [];
+
+            for (let part of parts) {
+                // Remove surrounding quotes
+                let val = part.replace(/^"|"$/g, '');
+
+                if (val.includes(':') && !val.includes(' ') && val.length > 20) {
+                    // Likely an encrypted value
+                    try {
+                        const [ivB64, ctB64] = val.split(':');
+                        const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
+                        const ct = Uint8Array.from(atob(ctB64), c => c.charCodeAt(0));
+                        const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+                        val = new TextDecoder().decode(plaintext);
+                    } catch(e) {
+                        // Not encrypted or wrong key, keep original
+                    }
+                }
+                decrypted.push(val);
+            }
+
+            return decrypted.join(',');
+        }
+    </script>
+</body>
+</html>
