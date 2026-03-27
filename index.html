@@ -7,9 +7,9 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; media-src 'self' blob:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NFC/Code Smart Attendance PWA</title>
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0f172a">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="/icon-192.png">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -307,7 +307,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.5</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.6</div>
         </div>
     </div>
 
@@ -604,6 +604,16 @@
         </div>
     </div>
 
+    <!-- Mismatch Re-register modal -->
+    <div class="modal-overlay" id="mismatchModal">
+        <div class="modal">
+            <h3>Card Not Recognized</h3>
+            <p id="mismatchMsg">This card has failed to match 3 times. Would you like to re-register it to a student?</p>
+            <button class="modal-btn modal-cancel" onclick="closeMismatchModal()">Cancel</button>
+            <button class="modal-btn modal-confirm" onclick="mismatchReregister()">Re-register</button>
+        </div>
+    </div>
+
     <!-- QR Scanner overlay -->
     <div class="qr-overlay" id="qrOverlay">
         <span class="qr-label" id="qrLabel">Scan QR Code</span>
@@ -671,6 +681,8 @@
         let serverMode = false;
         let deleteCourseTarget = null;
         let attendMode = 'nfc'; // 'nfc' or 'qr' — set by Attend NFC / Attend Code buttons
+        let nfcMismatchCounts = {}; // tracks per-serial mismatch counts during attend mode
+        let mismatchSerial = null; // serial that triggered the re-register prompt
 
         // Settings (persisted in localStorage)
         const SETTINGS_KEY = 'nfc_attendance_settings';
@@ -922,7 +934,7 @@
                 return;
             }
             const backup = {
-                version: 'v7.5',
+                version: 'v7.6',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -1693,9 +1705,23 @@
                     setStatus(`${found.name} — attendance recorded. Next student...`, 'success');
                     renderList(found.id, 'attend-highlight');
                     scrollToRow(found.id);
+                    // Reset mismatch count for this serial on successful match
+                    delete nfcMismatchCounts[serial];
                 } else {
+                    // Track mismatch count per serial
+                    nfcMismatchCounts[serial] = (nfcMismatchCounts[serial] || 0) + 1;
                     playBoo();
-                    setStatus(`Card not registered — scanning continues...`, 'error');
+                    if (nfcMismatchCounts[serial] >= 3) {
+                        mismatchSerial = serial;
+                        stopScan();
+                        setStatus(`Card failed to match 3 times — re-register?`, 'error');
+                        document.getElementById('mismatchMsg').textContent =
+                            `This card (…${serial.slice(-8)}) has failed to match 3 times. Re-register it to a student and record attendance?`;
+                        document.getElementById('mismatchModal').classList.add('active');
+                        nfcMismatchCounts[serial] = 0;
+                    } else {
+                        setStatus(`Card not registered (attempt ${nfcMismatchCounts[serial]}/3) — scanning continues...`, 'error');
+                    }
                 }
 
             } else if (currentMode === 'manual') {
@@ -1925,6 +1951,64 @@
             renderList();
             if (method === 'qr') startQRScan('register', registerTarget);
             else startNFCScan('register', registerTarget);
+        }
+
+        // ---- Mismatch Re-register (3 failed attend attempts) ----
+        function closeMismatchModal() {
+            document.getElementById('mismatchModal').classList.remove('active');
+            mismatchSerial = null;
+            // Resume attend scanning
+            startNFCScan('attend');
+        }
+
+        function mismatchReregister() {
+            document.getElementById('mismatchModal').classList.remove('active');
+            // Build list of students who have NFC registered (to pick which one to re-register)
+            const registered = students.filter(s => s.id !== 0 && s.nfcSerial);
+            const names = registered.map(s => `${s.id}: ${s.name} (…${s.nfcSerial.slice(-8)})`);
+            const input = prompt(
+                'Enter the student number (ID) to re-register this card to:\n\n' +
+                names.join('\n')
+            );
+            if (!input) {
+                mismatchSerial = null;
+                startNFCScan('attend');
+                return;
+            }
+            const targetId = parseInt(input, 10);
+            const target = students.find(s => s.id === targetId && s.id !== 0);
+            if (!target) {
+                setStatus('Invalid student ID — cancelled', 'error');
+                mismatchSerial = null;
+                startNFCScan('attend');
+                return;
+            }
+            // Require professor authorization, then re-register and record attendance
+            const serial = mismatchSerial;
+            requireAuth('Re-register & Attend', async () => {
+                const existing = students.find(st => st.nfcSerial === serial && st.id !== target.id);
+                if (existing) {
+                    playBoo();
+                    setStatus(`Card already registered to ${existing.name}!`, 'error');
+                    mismatchSerial = null;
+                    startNFCScan('attend');
+                    return;
+                }
+                target.nfcSerial = serial;
+                target.consented = true;
+                target.consentedAt = getNowTimestamp();
+                const ts = getNowTimestamp('nfc');
+                target.timestamps.push(ts);
+                await saveActiveCourse();
+                playBeep();
+                speakName(target.name);
+                setStatus(`Re-registered & attendance recorded for ${target.name}`, 'success');
+                renderList(target.id, 'attend-highlight');
+                scrollToRow(target.id);
+                mismatchSerial = null;
+                // Resume attend scanning
+                startNFCScan('attend');
+            });
         }
 
         // ---- Manual Attendance (double confirmation + professor card) ----
@@ -2642,7 +2726,7 @@
             document.getElementById('unsupported').classList.remove('hidden');
         }
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(() => {});
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
         }
 
         (async () => {
