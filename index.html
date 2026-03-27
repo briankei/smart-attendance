@@ -375,7 +375,7 @@
                 <p style="font-size:0.8rem;color:#64748b;margin-top:4px">Short format: name and last 4 digits only. Extended format: full student number, NFC serial, and consent date. Fields separated by comma or tab. Last 4 digits of student number are used for Attend Code verification.</p>
                 <p style="margin-top:4px">Example:</p>
                 <div style="background:#0f172a;border-radius:6px;padding:8px 12px;margin:6px 0;font-family:monospace;font-size:0.8rem;color:#e2e8f0">
-                    AF1234 Business Analytics<br>
+                    PBS1000 Sample Course<br>
                     Professor Mary Chen<br>
                     Peter Adoby,1234<br>
                     Peter Bai,5432<br>
@@ -571,7 +571,7 @@
         <div class="modal" style="max-width:450px;text-align:left">
             <h3 style="text-align:center">Create Course</h3>
             <p style="font-size:0.8rem;color:#64748b;text-align:center;margin-bottom:12px">Enter course name, professor name, and student list (one per line: name,last4digits)</p>
-            <input type="text" id="ccCourseName" placeholder="Course name (e.g. AF1234 Business Analytics)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem">
+            <input type="text" id="ccCourseName" placeholder="Course name (e.g. PBS1000 Sample Course)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem">
             <input type="text" id="ccProfName" placeholder="Professor name (e.g. Professor Mary Chen)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem">
             <textarea id="ccStudents" placeholder="Peter Adoby,1234&#10;Peter Bai,5432&#10;David Lim,9876" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem;font-family:monospace;resize:vertical"></textarea>
             <div id="ccError" style="color:#fca5a5;font-size:0.8rem;margin-bottom:8px"></div>
@@ -1132,7 +1132,7 @@
                 ${installHtml}
                 <p style="color:#38bdf8;font-weight:600">${isPWA ? 'Upload student list. File format:' : 'Step 2: Upload student list. File format:'}</p>
                 <div style="background:#0f172a;border-radius:6px;padding:10px;margin:8px auto;font-family:monospace;font-size:0.8rem;color:#e2e8f0;text-align:left;max-width:250px">
-                    AF1234 Business Analytics<br>
+                    PBS1000 Sample Course<br>
                     Professor Mary Chen<br>
                     Peter Adoby,1234<br>
                     Peter Bai,5432<br>
@@ -2760,7 +2760,7 @@
             // Load sample course if professor is registered but no courses exist
             if (professorGlobal.nfcSerial && Object.keys(courses).length === 0) {
                 await addCourse({
-                    title: 'AF1234 Business Analytics',
+                    title: 'PBS1000 Sample Course',
                     students: [
                         { name: 'Peter Adoby', last4: '1234' },
                         { name: 'Peter Bai', last4: '5432' },
