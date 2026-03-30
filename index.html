@@ -307,7 +307,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.6</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.7</div>
         </div>
     </div>
 
@@ -463,6 +463,15 @@
         <div class="modal" style="max-width:400px">
             <h3 style="color:#f97316">Wheel of Fortune</h3>
             <div class="game-wheel-name" id="wheelName">Tap Play to start</div>
+            <div id="wheelResponse" style="display:none;margin:10px 0">
+                <div style="color:#94a3b8;font-size:0.8rem;margin-bottom:6px">Record response:</div>
+                <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+                    <button class="modal-btn" style="background:#ef4444;color:#fff;padding:8px 14px;font-size:0.85rem" onclick="recordWheelResponse('Refused')">Refused</button>
+                    <button class="modal-btn" style="background:#f59e0b;color:#fff;padding:8px 14px;font-size:0.85rem" onclick="recordWheelResponse('Poor')">Poor</button>
+                    <button class="modal-btn" style="background:#10b981;color:#fff;padding:8px 14px;font-size:0.85rem" onclick="recordWheelResponse('Good')">Good</button>
+                    <button class="modal-btn" style="background:#6366f1;color:#fff;padding:8px 14px;font-size:0.85rem" onclick="recordWheelResponse('Excellent')">Excellent</button>
+                </div>
+            </div>
             <div style="margin:12px 0">
                 <label style="color:#94a3b8;font-size:0.85rem;cursor:pointer">
                     <input type="checkbox" id="wheelAudio" checked style="margin-right:6px"> Audio effects
@@ -480,15 +489,32 @@
         <div class="modal" style="max-width:450px;text-align:left">
             <h3 style="text-align:center;color:#6366f1">Random Groups</h3>
             <div style="text-align:center;margin-bottom:12px">
-                <label style="color:#94a3b8;font-size:0.85rem">Group size:
-                    <select id="groupSize" style="padding:6px 12px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;margin-left:6px">
-                        <option value="2">2</option>
-                        <option value="3" selected>3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                    </select>
-                </label>
-                <button class="modal-btn modal-confirm" style="background:#6366f1;margin-left:8px" onclick="generateGroups()">Shuffle</button>
+                <div style="display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+                    <label style="color:#94a3b8;font-size:0.85rem">Group size:
+                        <select id="groupSize" style="padding:6px 12px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;margin-left:6px">
+                            <option value="2">2</option>
+                            <option value="3" selected>3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                        </select>
+                    </label>
+                    <label style="color:#94a3b8;font-size:0.85rem">No. of groups:
+                        <select id="groupCount" style="padding:6px 12px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;margin-left:6px">
+                            <option value="0" selected>Auto</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10">10</option>
+                            <option value="11">11</option>
+                            <option value="12">12</option>
+                        </select>
+                    </label>
+                </div>
+                <button class="modal-btn modal-confirm" style="background:#6366f1" onclick="generateGroups()">Shuffle</button>
             </div>
             <div id="groupsResult" style="max-height:350px;overflow-y:auto"></div>
             <div style="text-align:center;margin-top:12px">
@@ -934,7 +960,7 @@
                 return;
             }
             const backup = {
-                version: 'v7.6',
+                version: 'v7.7',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2278,25 +2304,37 @@
         // Wheel of Fortune
         let wheelSpinning = false;
         let wheelInterval = null;
+        let wheelWinner = null;
 
         function openWheelOfFortune() {
             document.getElementById('wheelName').textContent = 'Tap Play to start';
             document.getElementById('wheelName').classList.remove('game-wheel-spinning');
+            document.getElementById('wheelResponse').style.display = 'none';
+            wheelWinner = null;
             document.getElementById('wheelModal').classList.add('active');
         }
         function closeWheel() {
             if (wheelInterval) { clearInterval(wheelInterval); wheelInterval = null; }
             wheelSpinning = false;
+            wheelWinner = null;
+            document.getElementById('wheelResponse').style.display = 'none';
             document.getElementById('wheelModal').classList.remove('active');
         }
 
         function playWheel() {
             if (wheelSpinning) return;
             wheelSpinning = true;
+            wheelWinner = null;
+            document.getElementById('wheelResponse').style.display = 'none';
             const nameEl = document.getElementById('wheelName');
             const audioOn = document.getElementById('wheelAudio').checked;
-            const studentList = students.filter((s, i) => i > 0); // exclude professor
-            if (studentList.length === 0) { wheelSpinning = false; return; }
+            // Only include students who attended today (exclude professor at index 0)
+            const attendedList = students.filter((s, i) => i > 0 && hasAttendedToday(s));
+            if (attendedList.length === 0) {
+                nameEl.textContent = 'No attended students';
+                wheelSpinning = false;
+                return;
+            }
 
             let count = 0;
             const totalSpins = 30; // number of name flashes
@@ -2306,7 +2344,7 @@
             nameEl.classList.add('game-wheel-spinning');
 
             wheelInterval = setInterval(() => {
-                const randomStudent = studentList[Math.floor(Math.random() * studentList.length)];
+                const randomStudent = attendedList[Math.floor(Math.random() * attendedList.length)];
                 nameEl.textContent = randomStudent.name;
 
                 // Bee-boo sound
@@ -2328,11 +2366,15 @@
                     wheelInterval = null;
 
                     // Final pick
-                    const winner = studentList[Math.floor(Math.random() * studentList.length)];
+                    const winner = attendedList[Math.floor(Math.random() * attendedList.length)];
+                    wheelWinner = winner;
                     nameEl.textContent = winner.name;
                     nameEl.classList.remove('game-wheel-spinning');
                     nameEl.style.color = '#10b981';
                     wheelSpinning = false;
+
+                    // Show response buttons
+                    document.getElementById('wheelResponse').style.display = 'block';
 
                     // Announce winner
                     if (audioOn) {
@@ -2352,6 +2394,19 @@
                     setTimeout(() => { nameEl.style.color = '#f97316'; }, 3000);
                 }
             }, 100); // 100ms per spin = 3 seconds total
+        }
+
+        function recordWheelResponse(response) {
+            if (!wheelWinner || !activeCourse) return;
+            const ts = getNowTimestamp('wheel|' + response);
+            wheelWinner.timestamps.push(ts);
+            saveCourses();
+            document.getElementById('wheelResponse').style.display = 'none';
+            const nameEl = document.getElementById('wheelName');
+            nameEl.textContent = wheelWinner.name + ' — ' + response;
+            nameEl.style.color = response === 'Excellent' ? '#6366f1' : response === 'Good' ? '#10b981' : response === 'Poor' ? '#f59e0b' : '#ef4444';
+            wheelWinner = null;
+            playBeep();
         }
 
         // ---- Blackboard Export ----
@@ -2468,6 +2523,7 @@
         }
 
         function generateGroups() {
+            const groupCount = parseInt(document.getElementById('groupCount').value);
             const size = parseInt(document.getElementById('groupSize').value);
             const studentList = students.filter((s, i) => i > 0);
             // Shuffle
@@ -2478,8 +2534,16 @@
             }
             // Split into groups
             const groups = [];
-            for (let i = 0; i < shuffled.length; i += size) {
-                groups.push(shuffled.slice(i, i + size));
+            if (groupCount > 0) {
+                // Split by number of groups
+                const numGroups = Math.min(groupCount, shuffled.length);
+                for (let g = 0; g < numGroups; g++) groups.push([]);
+                shuffled.forEach((s, i) => groups[i % numGroups].push(s));
+            } else {
+                // Split by group size (original behavior)
+                for (let i = 0; i < shuffled.length; i += size) {
+                    groups.push(shuffled.slice(i, i + size));
+                }
             }
             // Render
             let html = '';
