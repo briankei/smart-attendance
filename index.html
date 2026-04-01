@@ -109,6 +109,13 @@
         }
         .btn-history:active { transform: scale(0.95); }
 
+        .btn-qr {
+            padding: 4px 10px; border: none; border-radius: 6px; font-size: 0.7rem; font-weight: 600;
+            cursor: pointer; background: linear-gradient(135deg, #10b981, #059669); color: #fff;
+            margin-left: 4px; flex-shrink: 0;
+        }
+        .btn-qr:active { transform: scale(0.95); }
+
         .history-list {
             text-align: left; max-height: 300px; overflow-y: auto; margin: 10px 0;
             background: #0f172a; border-radius: 8px; padding: 10px;
@@ -307,7 +314,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.7</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.8</div>
         </div>
     </div>
 
@@ -960,7 +967,7 @@
                 return;
             }
             const backup = {
-                version: 'v7.7',
+                version: 'v7.8',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -1585,6 +1592,7 @@
                 const lastTs = getTimestampDisplay(lastTsRaw);
                 const lastRemark = getTimestampRemark(lastTsRaw);
                 const manualBtn = `<button class="btn-manual" data-id="${s.id}">Manual</button>`;
+                const qrBtn = attendMode === 'nfc' && !attended ? `<button class="btn-qr" data-id="${s.id}">QR</button>` : '';
                 const historyBtn = s.timestamps.length > 0 ? `<button class="btn-history" data-id="${s.id}">Log</button>` : '';
                 const reregBtn = s.nfcSerial ? `<button class="btn-rereg" data-id="${s.id}">Re-reg</button>` : '';
                 let nfcStatus;
@@ -1601,7 +1609,7 @@
                 row.innerHTML = `
                     <span class="student-num">${i}</span>
                     <span class="student-name">${escapeHTML(s.name)}${attended ? '<span class="check-mark">&#10003;</span>' : ''}</span>
-                    ${manualBtn}${historyBtn}${reregBtn}
+                    ${manualBtn}${qrBtn}${historyBtn}${reregBtn}
                     <span class="student-status">
                         ${nfcStatus}
                         ${lastTs ? `<br><span class="last-seen">${lastTs}</span>${lastRemark && ['nfc','qr code','manual'].includes(lastRemark) ? `<span class="remark-tag remark-${lastRemark}">${lastRemark}</span>` : ''}` : ''}
@@ -1619,6 +1627,10 @@
                 const historyBtnEl = row.querySelector('.btn-history');
                 if (historyBtnEl) {
                     historyBtnEl.addEventListener('click', (e) => { e.stopPropagation(); showHistory(s.id); });
+                }
+                const qrBtnEl = row.querySelector('.btn-qr');
+                if (qrBtnEl) {
+                    qrBtnEl.addEventListener('click', (e) => { e.stopPropagation(); qrFromNfcMode(s.id); });
                 }
                 const reregBtnEl = row.querySelector('.btn-rereg');
                 if (reregBtnEl) {
@@ -1811,6 +1823,16 @@
             }
         }
 
+        // ---- QR from NFC mode ----
+        let _qrFromNfc = false;
+
+        function qrFromNfcMode(id) {
+            _qrFromNfc = true;
+            stopScan(); // pause NFC scanning
+            window._qrVerifyStudentId = id;
+            startQRScan('qr-student', id);
+        }
+
         // ---- QR Code Verification for Attendance ----
         let qrVerifyTarget = null;
         let qrVerifyCorrect = null;
@@ -1879,8 +1901,13 @@
                 setStatus(`Wrong code — ${s.name} attendance failed`, 'error');
             }
 
-            // Stay in qrscan mode
-            if (wasQRMode) {
+            // Return to appropriate mode
+            if (_qrFromNfc) {
+                _qrFromNfc = false;
+                attendMode = 'nfc';
+                updateModeButtons();
+                startNFCScan('attend');
+            } else if (wasQRMode) {
                 attendMode = 'qrscan';
                 updateModeButtons();
             }
@@ -1891,6 +1918,14 @@
             qrVerifyTarget = null;
             qrVerifyCorrect = null;
             window._lastQRContent = null;
+            // Return to NFC mode if QR was triggered from NFC mode
+            if (_qrFromNfc) {
+                _qrFromNfc = false;
+                attendMode = 'nfc';
+                updateModeButtons();
+                startNFCScan('attend');
+                return;
+            }
             // Stay in qrscan mode
             if (attendMode === 'qrscan' || attendMode === 'qr-verify') {
                 attendMode = 'qrscan';
