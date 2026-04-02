@@ -313,7 +313,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.3</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.4</div>
         </div>
     </div>
 
@@ -378,14 +378,14 @@
                     or: Name,StudentNo,NFC,ConsentDate<br>
                     ...
                 </div>
-                <p style="font-size:0.8rem;color:#64748b;margin-top:4px">Short format: name and last 4 digits only. Extended format: full student number, NFC serial, and consent date. Fields separated by comma or tab. Last 4 digits of student number are used for Attend Code verification.</p>
+                <p style="font-size:0.8rem;color:#64748b;margin-top:4px">Short format: name and student number. Extended format: student number, NFC serial, and consent date. Fields separated by comma or tab. Last 4 digits of student number are used for Attend Code verification.</p>
                 <p style="margin-top:4px">Example:</p>
                 <div style="background:#0f172a;border-radius:6px;padding:8px 12px;margin:6px 0;font-family:monospace;font-size:0.8rem;color:#e2e8f0">
                     PBS 1000 Sample Course<br>
                     Professor Mary Chen<br>
-                    Peter Adoby,1234<br>
-                    Peter Bai,5432<br>
-                    David Lim,9876
+                    Peter Adoby,24011234<br>
+                    Peter Bai,24025432<br>
+                    David Lim,24039876
                 </div>
 
                 <p style="color:#38bdf8;font-weight:600;margin-top:12px;margin-bottom:4px">Modes</p>
@@ -602,10 +602,10 @@
     <div class="modal-overlay" id="createCourseModal">
         <div class="modal" style="max-width:450px;text-align:left">
             <h3 style="text-align:center">Create Course</h3>
-            <p style="font-size:0.8rem;color:#64748b;text-align:center;margin-bottom:12px">Enter course name, professor name, and student list (one per line: name,last4digits)</p>
+            <p style="font-size:0.8rem;color:#64748b;text-align:center;margin-bottom:12px">Enter course name, professor name, and student list (one per line: name,studentNo)</p>
             <input type="text" id="ccCourseName" placeholder="Course name (e.g. PBS 1000 Sample Course)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem">
             <input type="text" id="ccProfName" placeholder="Professor name (e.g. Professor Mary Chen)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem">
-            <textarea id="ccStudents" placeholder="Peter Adoby,1234&#10;Peter Bai,5432&#10;David Lim,9876" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem;font-family:monospace;resize:vertical"></textarea>
+            <textarea id="ccStudents" placeholder="Peter Adoby,24011234&#10;Peter Bai,24025432&#10;David Lim,24039876" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem;font-family:monospace;resize:vertical"></textarea>
             <div id="ccError" style="color:#fca5a5;font-size:0.8rem;margin-bottom:8px"></div>
             <div style="text-align:center">
                 <button class="modal-btn modal-confirm" onclick="submitCreateCourse()">Create</button>
@@ -974,7 +974,7 @@
                 return;
             }
             const backup = {
-                version: 'v8.3',
+                version: 'v8.4',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -1104,8 +1104,8 @@
         }
 
         // ---- Welcome NFC Setup ----
-        const WELCOME_MSG_PWA = 'Professor, all data is stored locally. No data will go online. You can import a course by uploading a student list file, or create a course interactively in this app by clicking on the menu. The student list is a text file with short course name, professor name and list of students with last 4 digits of student number separated by comma or tab in each line.';
-        const WELCOME_MSG_BROWSER = 'Professor, all data is stored locally. No data will go online. Please install this app first. You can import a course by uploading a student list file, or create a course interactively in this app by clicking on the menu. The student list is a text file with short course name, professor name and list of students with last 4 digits of student number separated by comma or tab in each line.';
+        const WELCOME_MSG_PWA = 'Professor, all data is stored locally. No data will go online. You can import a course by uploading a student list file, or create a course interactively in this app by clicking on the menu. The student list is a text file with short course name, professor name and list of students with student number separated by comma or tab in each line.';
+        const WELCOME_MSG_BROWSER = 'Professor, all data is stored locally. No data will go online. Please install this app first. You can import a course by uploading a student list file, or create a course interactively in this app by clicking on the menu. The student list is a text file with short course name, professor name and list of students with student number separated by comma or tab in each line.';
         function getWelcomeMsg() { return isPWA ? WELCOME_MSG_PWA : WELCOME_MSG_BROWSER; }
 
         function startWelcomeReg(method) {
@@ -1196,9 +1196,9 @@
                 <div style="background:#0f172a;border-radius:6px;padding:10px;margin:8px auto;font-family:monospace;font-size:0.8rem;color:#e2e8f0;text-align:left;max-width:250px">
                     PBS 1000 Sample Course<br>
                     Professor Mary Chen<br>
-                    Peter Adoby,1234<br>
-                    Peter Bai,5432<br>
-                    David Lim,9876<br>
+                    Peter Adoby,24011234<br>
+                    Peter Bai,24025432<br>
+                    David Lim,24039876<br>
                     ...
                 </div>
             </div>`;
@@ -1876,7 +1876,7 @@
             const s = students[id];
 
             if (!s.last4) {
-                setStatus(`${s.name} has no student number. Upload student list with last 4 digits.`, 'error');
+                setStatus(`${s.name} has no student number. Upload student list with student numbers.`, 'error');
                 playBoo();
                 return;
             }
@@ -2873,7 +2873,7 @@
             const fileText = courseName + '\n' + profName + '\n' + studentsText;
             const parsed = parseStudentFile(fileText);
             if (!parsed || parsed.students.length === 0) {
-                errEl.textContent = 'Invalid student list format. Use: Name,last4digits (one per line)';
+                errEl.textContent = 'Invalid student list format. Use: Name,StudentNo (one per line)';
                 return;
             }
 
@@ -2989,9 +2989,9 @@
                 await addCourse({
                     title: 'PBS 1000 Sample Course',
                     students: [
-                        { name: 'Peter Adoby', last4: '1234' },
-                        { name: 'Peter Bai', last4: '5432' },
-                        { name: 'David Lim', last4: '9876' }
+                        { name: 'Peter Adoby', studentNo: '24011234', last4: '1234' },
+                        { name: 'Peter Bai', studentNo: '24025432', last4: '5432' },
+                        { name: 'David Lim', studentNo: '24039876', last4: '9876' }
                     ],
                     professor: professorGlobal.name || 'Professor'
                 });
