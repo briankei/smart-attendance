@@ -290,10 +290,9 @@
         <div class="menu-section">
             <div class="menu-section-title">Tools</div>
             <div class="menu-item" onclick="exportCSV();closeMenu()"><span class="mi-icon">&#128196;</span> Export CSV</div>
-            <div class="menu-item" onclick="exportBlackboard();closeMenu()"><span class="mi-icon">&#127891;</span> Export for Blackboard</div>
+            <div class="menu-item" onclick="shareCSV();closeMenu()"><span class="mi-icon">&#128228;</span> Share CSV</div>
             <div class="menu-item" onclick="closeMenu();createCourseUI()"><span class="mi-icon">&#128221;</span> Create Course</div>
             <div class="menu-item" onclick="closeMenu();document.getElementById('uploadFile').click()"><span class="mi-icon">&#128228;</span> Upload Student List</div>
-            <div class="menu-item" onclick="shareBluetooth();closeMenu()"><span class="mi-icon">&#128225;</span> Share via Bluetooth</div>
             <div class="menu-item" onclick="closeMenu();requireAuth('Backup All Data',()=>backupData())"><span class="mi-icon">&#128190;</span> Backup All Data</div>
             <div class="menu-item" onclick="closeMenu();document.getElementById('restoreFile').click()"><span class="mi-icon">&#128194;</span> Restore Backup</div>
             <div class="menu-item" onclick="installPWA();closeMenu()"><span class="mi-icon">&#128241;</span> Install App (PWA)</div>
@@ -314,7 +313,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.8</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.9</div>
         </div>
     </div>
 
@@ -967,7 +966,7 @@
                 return;
             }
             const backup = {
-                version: 'v7.8',
+                version: 'v7.9',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2321,6 +2320,43 @@
             a.click();
             URL.revokeObjectURL(url);
             setStatus('CSV exported', 'success');
+        }
+
+        async function shareCSV() {
+            if (!activeCourse) { setStatus('No course loaded', 'error'); return; }
+            const c = courses[activeCourse];
+            let csv = `Course,${c.title}\nProfessor,${c.professor}\n\nName,Student No,Consented,Timestamps (with remarks)\n`;
+            for (const s of students) {
+                const ts = s.timestamps.join('; ');
+                csv += `"${s.name}","${s.studentNo || ''}","${s.consented ? 'Yes' : 'No'}","${ts}"\n`;
+            }
+            const fileName = `${c.title.replace(/\s+/g,'_')}_attendance_${new Date().toISOString().slice(0,10)}.csv`;
+            const file = new File([csv], fileName, { type: 'text/csv' });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({ title: `${c.title} Attendance`, files: [file] });
+                    setStatus('CSV shared', 'success');
+                } catch (e) {
+                    if (e.name !== 'AbortError') setStatus('Share cancelled or failed', 'error');
+                }
+            } else if (navigator.share) {
+                // Fallback: share as text if file sharing not supported
+                let text = `${c.title} Attendance\n${c.professor}\n\n`;
+                students.forEach((s, i) => {
+                    if (i === 0) return;
+                    const attended = hasAttendedToday(s);
+                    text += `${i}. ${s.name} - ${attended ? 'Present' : 'Absent'}\n`;
+                });
+                try {
+                    await navigator.share({ title: `${c.title} Attendance`, text });
+                    setStatus('Attendance shared', 'success');
+                } catch (e) {
+                    if (e.name !== 'AbortError') setStatus('Share cancelled', 'error');
+                }
+            } else {
+                setStatus('Web Share not supported — use Export CSV instead', 'error');
+            }
         }
 
         // ---- Games ----
