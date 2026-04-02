@@ -313,7 +313,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.2</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.3</div>
         </div>
     </div>
 
@@ -974,7 +974,7 @@
                 return;
             }
             const backup = {
-                version: 'v8.2',
+                version: 'v8.3',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2338,20 +2338,63 @@
         }
 
         // ---- CSV Export ----
+        function buildCSVData(includeSerial) {
+            const c = courses[activeCourse];
+            // Collect all unique dates across all students
+            const allDates = new Set();
+            const studentData = [];
+            for (const s of students) {
+                const byDate = {};
+                for (const ts of s.timestamps) {
+                    const parts = ts.split('|');
+                    const dateTime = parts[0].trim();
+                    const date = dateTime.split(' ')[0];
+                    const time = dateTime.split(' ')[1] || '';
+                    const type = parts[1] || '';
+                    const detail = parts.slice(2).join('|') || '';
+                    allDates.add(date);
+                    if (!byDate[date]) byDate[date] = [];
+                    byDate[date].push({ time, type, detail });
+                }
+                studentData.push({ student: s, byDate });
+            }
+            const sortedDates = [...allDates].sort();
+            return { course: c, studentData, sortedDates };
+        }
+
         async function exportCSV() {
             if (!activeCourse) { setStatus('No course loaded', 'error'); return; }
-            const c = courses[activeCourse];
-            let csv = `Course,${c.title}\nProfessor,${c.professor}\n\nName,Student No,Serial (encrypted),Consented,Consent Date,Timestamps (with remarks)\n`;
-            for (const s of students) {
-                const ts = s.timestamps.join('; ');
+            const { course, studentData, sortedDates } = buildCSVData(true);
+
+            // Header: Name, Student No, Serial, Consented, Consent Date, then one column per date
+            let csv = `Course,"${course.title}"\nProfessor,"${course.professor}"\n\n`;
+            csv += `Name,Student No,Serial (encrypted),Consented,Consent Date`;
+            for (const d of sortedDates) csv += `,${d}`;
+            csv += '\n';
+
+            for (const { student: s, byDate } of studentData) {
                 const encSerial = await encryptSerial(s.nfcSerial);
-                csv += `"${s.name}","${s.studentNo || ''}","${encSerial}","${s.consented ? 'Yes' : 'No'}","${s.consentedAt || ''}","${ts}"\n`;
+                csv += `"${s.name}","${s.studentNo || ''}","${encSerial}","${s.consented ? 'Yes' : 'No'}","${s.consentedAt || ''}"`;
+                for (const d of sortedDates) {
+                    if (byDate[d]) {
+                        const entries = byDate[d].map(e => {
+                            let val = e.time + ' ' + e.type;
+                            if (e.detail) val += ' ' + e.detail;
+                            return val.trim();
+                        }).join('; ');
+                        csv += `,"${entries}"`;
+                    } else {
+                        csv += `,`;
+                    }
+                }
+                csv += '\n';
             }
+
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${c.title.replace(/\s+/g,'_')}_attendance_${new Date().toISOString().slice(0,10)}.csv`;
+            a.download = `${course.title.replace(/\s+/g,'_')}_attendance_${new Date().toISOString().slice(0,10)}.csv`;
             a.click();
             URL.revokeObjectURL(url);
             setStatus('CSV exported', 'success');
@@ -2359,11 +2402,28 @@
 
         async function shareCSV() {
             if (!activeCourse) { setStatus('No course loaded', 'error'); return; }
-            const c = courses[activeCourse];
-            let csv = `Course,${c.title}\nProfessor,${c.professor}\n\nName,Student No,Consented,Timestamps (with remarks)\n`;
-            for (const s of students) {
-                const ts = s.timestamps.join('; ');
-                csv += `"${s.name}","${s.studentNo || ''}","${s.consented ? 'Yes' : 'No'}","${ts}"\n`;
+            const { course: c, studentData, sortedDates } = buildCSVData(false);
+
+            let csv = `Course,"${c.title}"\nProfessor,"${c.professor}"\n\n`;
+            csv += `Name,Student No,Consented`;
+            for (const d of sortedDates) csv += `,${d}`;
+            csv += '\n';
+
+            for (const { student: s, byDate } of studentData) {
+                csv += `"${s.name}","${s.studentNo || ''}","${s.consented ? 'Yes' : 'No'}"`;
+                for (const d of sortedDates) {
+                    if (byDate[d]) {
+                        const entries = byDate[d].map(e => {
+                            let val = e.time + ' ' + e.type;
+                            if (e.detail) val += ' ' + e.detail;
+                            return val.trim();
+                        }).join('; ');
+                        csv += `,"${entries}"`;
+                    } else {
+                        csv += `,`;
+                    }
+                }
+                csv += '\n';
             }
             const fileName = `${c.title.replace(/\s+/g,'_')}_attendance_${new Date().toISOString().slice(0,10)}.csv`;
             const file = new File([csv], fileName, { type: 'text/csv' });
