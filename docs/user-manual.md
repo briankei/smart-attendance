@@ -49,14 +49,14 @@ Create a plain text file (.txt) with this format:
 ```
 PBS 1000 Sample Course
 Professor Mary Chen
-Peter Adoby,1234
-Peter Bai,5432
-David Lim,9876
+Peter Adoby,24011234
+Peter Bai,24025432
+David Lim,24039876
 ```
 
 - **Line 1:** Course name
 - **Line 2:** Professor name
-- **Line 3+:** Student name, last 4 digits of student number (comma or tab separated)
+- **Line 3+:** Student name, student number (comma or tab separated). Last 4 digits are used for Attend Code verification.
 
 **Extended format** (for importing existing registrations):
 ```
@@ -249,8 +249,8 @@ Course,"PBS 1000 Sample Course"
 Professor,"Professor Chen"
 
 Name,Student No,Serial (encrypted),Consented,Consent Date,2026-04-01,2026-04-02
-"Peter Adoby","1234","...","Yes","2026-03-15","14:30:00 nfc","09:15:00 nfc; 10:20:00 wheel Good"
-"David Lim","9876","...","Yes","2026-03-15",,"09:18:00 qr code"
+"Peter Adoby","24011234","...","Yes","2026-03-15","14:30:00 nfc","09:15:00 nfc; 10:20:00 wheel Good"
+"David Lim","24039876","...","Yes","2026-03-15",,"09:18:00 qr code"
 ```
 
 Each activity entry contains: `time type detail` (e.g., `14:30:00 nfc`, `10:20:00 wheel Good`, `09:00:00 manual`). Multiple activities on the same day are separated by semicolons.

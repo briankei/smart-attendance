@@ -42,7 +42,7 @@ Provide a fast, reliable, and privacy-respecting classroom attendance tracking s
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| BR-010 | Upload student list from text file (name + last 4 digits of student number) | Must |
+| BR-010 | Upload student list from text file (name + student number; last 4 digits used for verification) | Must |
 | BR-011 | Support extended format (name, full student no., NFC serial, consent date) | Should |
 | BR-012 | Support multiple courses with tab-based switching | Must |
 | BR-013 | Delete a course (with professor authorization) | Must |

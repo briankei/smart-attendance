@@ -68,7 +68,7 @@ All testing is manual due to the zero-build, single-file architecture. Tests req
 | Field | Value |
 |-------|-------|
 | Precondition | App ready, no courses |
-| Steps | 1. Open menu<br>2. Tap Upload Student List<br>3. Select text file with format:<br>`PBS1000 Sample Course`<br>`Professor Chen`<br>`Peter Adoby,1234`<br>`David Lim,9876` |
+| Steps | 1. Open menu<br>2. Tap Upload Student List<br>3. Select text file with format:<br>`PBS 1000 Sample Course`<br>`Professor Chen`<br>`Peter Adoby,24011234`<br>`David Lim,24039876` |
 | Expected | Course created; students listed; summary shows "0 / 2 students attended" |
 
 ### TC-011: Upload Second Course

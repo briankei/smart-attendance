@@ -110,8 +110,8 @@ Course {
 
 Student {
   name: string,                     // student full name
-  studentNo: string,                // full student number or QR content
-  last4: string,                    // last 4 digits of student number
+  studentNo: string,                // 8-digit student number or QR content
+  last4: string,                    // last 4 digits (auto-derived from studentNo)
   nfcSerial: string,                // encrypted NFC serial (AES-GCM)
   consented: boolean,               // GDPR consent flag
   consentedAt: string,              // consent timestamp
