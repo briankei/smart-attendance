@@ -313,7 +313,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.0</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.1</div>
         </div>
     </div>
 
@@ -974,7 +974,7 @@
                 return;
             }
             const backup = {
-                version: 'v8.0',
+                version: 'v8.1',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2366,31 +2366,29 @@
                 csv += `"${s.name}","${s.studentNo || ''}","${s.consented ? 'Yes' : 'No'}","${ts}"\n`;
             }
             const fileName = `${c.title.replace(/\s+/g,'_')}_attendance_${new Date().toISOString().slice(0,10)}.csv`;
-            const file = new File([csv], fileName, { type: 'text/csv' });
+            const blob = new Blob([csv], { type: 'application/octet-stream' });
+            const file = new File([blob], fileName, { type: 'application/octet-stream' });
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 try {
-                    await navigator.share({ title: `${c.title} Attendance`, files: [file] });
+                    await navigator.share({
+                        title: `${c.title} Attendance`,
+                        text: `${c.title} attendance record`,
+                        files: [file]
+                    });
                     setStatus('CSV shared', 'success');
                 } catch (e) {
                     if (e.name !== 'AbortError') setStatus('Share cancelled or failed', 'error');
                 }
-            } else if (navigator.share) {
-                // Fallback: share as text if file sharing not supported
-                let text = `${c.title} Attendance\n${c.professor}\n\n`;
-                students.forEach((s, i) => {
-                    if (i === 0) return;
-                    const attended = hasAttendedToday(s);
-                    text += `${i}. ${s.name} - ${attended ? 'Present' : 'Absent'}\n`;
-                });
-                try {
-                    await navigator.share({ title: `${c.title} Attendance`, text });
-                    setStatus('Attendance shared', 'success');
-                } catch (e) {
-                    if (e.name !== 'AbortError') setStatus('Share cancelled', 'error');
-                }
             } else {
-                setStatus('Web Share not supported — use Export CSV instead', 'error');
+                // Fallback: download the file and prompt user to attach manually
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+                setStatus('CSV downloaded — attach it to your email manually', 'info');
             }
         }
 
