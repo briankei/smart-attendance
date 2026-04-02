@@ -1,7 +1,7 @@
 # User Manual
 
 **NFC/QR Code Smart Student Attendance PWA**
-**Version:** v7.8
+**Version:** v8.3
 **Last Updated:** 2026-04-02
 
 ---
@@ -31,10 +31,12 @@ After installing, open the app from your home screen. It works fully offline.
 
 ### 1.3 First-Time Setup
 
-On first launch, a Welcome screen appears. Choose one security method:
+On first launch, a Welcome screen appears. Choose a security method:
 
-- **Secure with Staff Card (NFC):** Scan your professor NFC/staff card. This card will be used to authorize sensitive operations.
-- **Secure with Password:** Enter and confirm a password.
+- **Secure with Staff Card (NFC):** Scan your professor NFC/staff card.
+- **Secure with Password:** Enter and confirm a password (min 6 characters).
+
+After registering the first method, the app will prompt you to also set up the other method as a backup. **Both NFC card and password can be registered** — either one can be used to authorize sensitive operations.
 
 ---
 
@@ -45,7 +47,7 @@ On first launch, a Welcome screen appears. Choose one security method:
 Create a plain text file (.txt) with this format:
 
 ```
-PBS1000 Sample Course
+PBS 1000 Sample Course
 Professor Mary Chen
 Peter Adoby,1234
 Peter Bai,5432
@@ -85,7 +87,7 @@ Best for: Android devices with NFC capability.
 3. Students tap their NFC cards one by one
 4. On successful scan: beep, name announced, green highlight, check mark appears
 
-**QR Fallback:** Each unattended student row shows a green **QR** button. Tap it to use the QR scanning process instead, then the app returns to NFC mode automatically.
+**QR Fallback:** Each unattended student row shows a green **QR** button. Tap it to use the QR scanning process (camera scan + last-4-digit verification), then the app returns to NFC mode automatically.
 
 ### 3.2 Attend Code
 
@@ -122,22 +124,47 @@ For students who forgot their NFC card and cannot use QR:
 
 ---
 
-## 4. Student Registration
+## 4. Professor Authentication
 
-### 4.1 NFC Registration
+The app supports **dual authentication** — professors can register both an NFC staff card and a password.
+
+### 4.1 Registering Both Methods
+
+- On first launch, after choosing one method, the app prompts to also register the other
+- You can also register/change methods from the menu at any time
+
+### 4.2 Authorizing Operations
+
+When a protected action requires authorization (e.g., manual attendance, data export, clear data), the auth modal shows only the methods you have registered:
+
+- **Scan NFC** — tap your registered staff card
+- **Password** — enter your professor password
+
+### 4.3 Professor Status Display
+
+The menu shows your registered methods:
+- `Professor Name: NFC | Password` — both registered
+- `Professor Name: Password` — password only
+- `Professor Name: NFC` — NFC only
+
+---
+
+## 5. Student Registration
+
+### 5.1 NFC Registration
 
 1. In Attend NFC mode, tap an unregistered student's name
 2. A consent prompt appears — student must agree
 3. Student taps their NFC card
 4. Card serial is encrypted and saved
 
-### 4.2 QR Registration
+### 5.2 QR Registration
 
 1. Tap an unregistered student's name
 2. Choose **"QR Code"** registration method
 3. Scan the student's QR code
 
-### 4.3 Re-registration
+### 5.3 Re-registration
 
 If a student needs a new card:
 
@@ -145,13 +172,13 @@ If a student needs a new card:
 2. Professor authorization required
 3. Register the new NFC card or QR code
 
-### 4.4 NFC Mismatch Detection
+### 5.4 NFC Mismatch Detection
 
 If a student scans the wrong card 3 times in a row, the app prompts to re-register. This requires professor authorization.
 
 ---
 
-## 5. Student List Display
+## 6. Student List Display
 
 Each student row shows:
 
@@ -170,11 +197,11 @@ Each student row shows:
 
 ---
 
-## 6. Games — Classroom Engagement
+## 7. Games — Classroom Engagement
 
 Access via the **Games** button (orange).
 
-### 6.1 Wheel of Fortune
+### 7.1 Wheel of Fortune
 
 - Randomly picks from **today's attended students only**
 - Spinning animation with bee-boo sound effects
@@ -183,71 +210,96 @@ Access via the **Games** button (orange).
   - **Poor** (amber) — poor response
   - **Good** (green) — good response
   - **Excellent** (purple) — excellent response
-- Response is saved as a timestamp (visible in student's Log)
+- Response is saved as a timestamp (visible in student's Log and CSV export)
 
-### 6.2 Random Groups
+### 7.2 Random Groups
 
 - Shuffle students into groups
 - **Group size:** Select 2, 3, 4, or 5 students per group
 - **No. of groups:** Select 3 to 12 groups, or "Auto" to use group size
 - Tap **Shuffle** to regenerate
 
-### 6.3 Random Order
+### 7.3 Random Order
 
 - Shuffles all students into a random presentation order
 - Tap **Shuffle** to regenerate
 
-### 6.4 Countdown Timer
+### 7.4 Countdown Timer
 
 - Classroom timer for activities
 
 ---
 
-## 7. Data Management
+## 8. Data Management
 
 All accessible from the hamburger menu.
 
-### 7.1 Export Attendance (CSV)
+### 8.1 Export CSV
 
-1. Open menu > **Export Attendance**
+Downloads a structured CSV file to the device.
+
+1. Open menu > **Export CSV**
+2. CSV file downloads automatically
+
+**CSV format:** Each date gets its own column. Each cell contains comma-delimited activity entries for that student on that date.
+
+Example output:
+```
+Course,"PBS 1000 Sample Course"
+Professor,"Professor Chen"
+
+Name,Student No,Serial (encrypted),Consented,Consent Date,2026-04-01,2026-04-02
+"Peter Adoby","1234","...","Yes","2026-03-15","14:30:00 nfc","09:15:00 nfc; 10:20:00 wheel Good"
+"David Lim","9876","...","Yes","2026-03-15",,"09:18:00 qr code"
+```
+
+Each activity entry contains: `time type detail` (e.g., `14:30:00 nfc`, `10:20:00 wheel Good`, `09:00:00 manual`). Multiple activities on the same day are separated by semicolons.
+
+### 8.2 Share CSV
+
+Shares the CSV file directly to other apps (Gmail, WhatsApp, Google Drive, etc.) via the native Android/iOS share sheet.
+
+1. Open menu > **Share CSV**
+2. The share sheet appears — choose the app to send to
+3. The CSV file is attached automatically
+
+**Note:** The shared CSV omits encrypted NFC serials for privacy.
+
+### 8.3 Backup
+
+1. Open menu > **Backup All Data**
 2. Professor authorization required
-3. Encrypted CSV file downloads automatically
+3. Enter a passphrase (remember it!)
+4. Encrypted JSON file downloads with all courses and settings
 
-### 7.2 Blackboard Export
+### 8.4 Restore
 
-1. Open menu > **Blackboard Export**
-2. Set column name (defaults to today's date)
-3. Preview and download
-
-### 7.3 Backup
-
-1. Open menu > **Backup Data**
-2. Enter a passphrase (remember it!)
-3. Encrypted JSON file downloads with all courses and settings
-
-### 7.4 Restore
-
-1. Open menu > **Restore Data**
+1. Open menu > **Restore Backup**
 2. Select backup file
 3. Enter the passphrase used during backup
 4. Confirm twice (this replaces all current data)
 
 **Important:** Export your current data before restoring, as restore overwrites everything.
 
-### 7.5 Bluetooth Transfer
+### 8.5 Clear All Data
 
-- Share attendance data files via Bluetooth to another device
-
-### 7.6 Clear All Data
-
-1. Open menu > **Clear Data**
+1. Open menu > **Clear All Data**
 2. Professor authorization required
 3. Confirm to delete all courses, settings, and encryption keys
 4. App returns to welcome screen
 
+### 8.6 App Reset
+
+Complete factory reset — removes all data including professor registration.
+
+1. Open menu > **App Reset**
+2. Double confirmation required
+3. Professor authorization required
+4. All localStorage cleared; app returns to welcome screen
+
 ---
 
-## 8. Settings
+## 9. Settings
 
 Accessible from the hamburger menu, under **Settings**.
 
@@ -261,19 +313,20 @@ Accessible from the hamburger menu, under **Settings**.
 
 ---
 
-## 9. Tips for Professors
+## 10. Tips for Professors
 
 - **Before class:** Upload student list, ensure app is installed and NFC mode is active
 - **During class:** Place device at entrance or pass around for students to tap
 - **QR fallback:** Students without NFC cards can use the QR button on their row
 - **After class:** Use Wheel of Fortune to pick students for review questions
-- **End of term:** Export all attendance data to Blackboard or CSV
+- **End of term:** Share or export attendance CSV via Gmail or other apps
 - **Device transfer:** Use Backup/Restore to move data between devices
 - **Multiple sections:** Upload separate student lists per course section
+- **Security:** Register both NFC card and password for backup access
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
@@ -282,5 +335,6 @@ Accessible from the hamburger menu, under **Settings**.
 | Camera not opening | Grant camera permission in browser settings |
 | App not loading offline | Reinstall PWA; ensure service worker is registered |
 | "No attended students" in Wheel | Students must have attended today before using Wheel of Fortune |
-| Forgot password | Clear browser data for the app and re-setup (data will be lost) |
+| Share CSV fails | Ensure Chrome is up to date; try Export CSV as fallback |
+| Forgot password | If NFC card is registered, use it to authorize. Otherwise, clear browser data and re-setup (data will be lost). |
 | Student list not parsing | Check file format: plain text, one student per line, comma-separated |

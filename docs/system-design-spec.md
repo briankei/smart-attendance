@@ -1,7 +1,7 @@
 # System Design Specification
 
 **Project:** NFC/QR Code Smart Student Attendance PWA
-**Version:** v7.8
+**Version:** v8.3
 **Last Updated:** 2026-04-02
 **Author:** BrianKei (cwk)
 
@@ -127,6 +127,15 @@ YYYY-MM-DD HH:MM:SS|<remark>
 
 Remark values: `nfc`, `qr code`, `manual`, `password`, `wheel|Excellent`, `wheel|Good`, `wheel|Poor`, `wheel|Refused`
 
+### Professor Global
+```
+professorGlobal {
+  name: string,         // professor name
+  nfcSerial: string,    // NFC card serial (or pw:hash if password-only)
+  pwHash: string        // SHA-256 password hash (pw: prefixed)
+}
+```
+
 ### 3.3 Storage Keys (localStorage)
 
 | Key | Content |
@@ -163,9 +172,11 @@ Remark values: `nfc`, `qr code`, `manual`, `password`, `wheel|Excellent`, `wheel
 
 ### 4.2 Professor Authentication
 
-- **Dual method:** NFC card scan or SHA-256 hashed password
-- **Gate function:** `requireAuth(actionName, callback)` wraps all sensitive operations
-- **Protected operations:** Manual attendance, re-registration, data export, clear data, delete course
+- **Dual registration:** Professor can register both NFC staff card and password
+- **Storage:** `professorGlobal.nfcSerial` for NFC card, `professorGlobal.pwHash` for SHA-256 hashed password
+- **Gate function:** `requireAuth(actionName, callback)` wraps all sensitive operations; auth modal dynamically shows only registered methods
+- **Helper:** `professorHasAuth()` returns true if either method is registered
+- **Protected operations:** Manual attendance, re-registration, data export, clear data, delete course, backup, restore
 
 ### 4.3 Content Security Policy
 
@@ -198,7 +209,7 @@ media-src 'self' blob:;
 ### 5.1 Cache Versioning
 
 ```javascript
-const CACHE_NAME = 'smart-attendance-v7.8';
+const CACHE_NAME = 'smart-attendance-v8.3';
 ```
 
 Cache name must be bumped with every version change to invalidate stale assets.
@@ -255,3 +266,8 @@ python3 server.py
 | v7.6 | 2026 | NFC mismatch re-register feature (3-strike) |
 | v7.7 | 2026-03-30 | Wheel of Fortune attended-only, response recording, group count |
 | v7.8 | 2026-04-01 | QR button on student list in NFC attend mode |
+| v7.9 | 2026-04-02 | Share CSV via Web Share API; removed Blackboard/Bluetooth |
+| v8.0 | 2026-04-02 | Dual professor auth (NFC + password); sample course rename |
+| v8.1 | 2026-04-02 | Fix Share CSV Gmail attachment MIME type |
+| v8.2 | 2026-04-02 | Fix Share CSV using text/csv for Android Chrome compatibility |
+| v8.3 | 2026-04-02 | Restructured CSV export with per-date columns |

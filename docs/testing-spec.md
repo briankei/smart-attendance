@@ -1,7 +1,7 @@
 # User & Unit Testing Specification
 
 **Project:** NFC/QR Code Smart Student Attendance PWA
-**Version:** v7.8
+**Version:** v8.3
 **Last Updated:** 2026-04-02
 **Author:** BrianKei (cwk)
 
