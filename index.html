@@ -313,7 +313,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v7.9</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.0</div>
         </div>
     </div>
 
@@ -381,7 +381,7 @@
                 <p style="font-size:0.8rem;color:#64748b;margin-top:4px">Short format: name and last 4 digits only. Extended format: full student number, NFC serial, and consent date. Fields separated by comma or tab. Last 4 digits of student number are used for Attend Code verification.</p>
                 <p style="margin-top:4px">Example:</p>
                 <div style="background:#0f172a;border-radius:6px;padding:8px 12px;margin:6px 0;font-family:monospace;font-size:0.8rem;color:#e2e8f0">
-                    PBS1000 Sample Course<br>
+                    PBS 1000 Sample Course<br>
                     Professor Mary Chen<br>
                     Peter Adoby,1234<br>
                     Peter Bai,5432<br>
@@ -420,7 +420,7 @@
             <p id="authActionName" style="color:#f59e0b;font-weight:600"></p>
             <p style="font-size:0.8rem;color:#64748b">Scan professor's NFC card or enter password to authorize</p>
             <button class="modal-btn modal-confirm" id="authNFCBtn" onclick="authWithNFC()">Scan NFC</button>
-            <button class="modal-btn" style="background:#f59e0b;color:#fff" onclick="authWithPassword()">Password</button>
+            <button class="modal-btn" id="authPWBtn" style="background:#f59e0b;color:#fff" onclick="authWithPassword()">Password</button>
             <button class="modal-btn modal-cancel" onclick="closeAuthModal()">Cancel</button>
         </div>
     </div>
@@ -603,7 +603,7 @@
         <div class="modal" style="max-width:450px;text-align:left">
             <h3 style="text-align:center">Create Course</h3>
             <p style="font-size:0.8rem;color:#64748b;text-align:center;margin-bottom:12px">Enter course name, professor name, and student list (one per line: name,last4digits)</p>
-            <input type="text" id="ccCourseName" placeholder="Course name (e.g. PBS1000 Sample Course)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem">
+            <input type="text" id="ccCourseName" placeholder="Course name (e.g. PBS 1000 Sample Course)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem">
             <input type="text" id="ccProfName" placeholder="Professor name (e.g. Professor Mary Chen)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem">
             <textarea id="ccStudents" placeholder="Peter Adoby,1234&#10;Peter Bai,5432&#10;David Lim,9876" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin-bottom:8px;font-size:0.9rem;font-family:monospace;resize:vertical"></textarea>
             <div id="ccError" style="color:#fca5a5;font-size:0.8rem;margin-bottom:8px"></div>
@@ -722,7 +722,7 @@
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
         let settings = { announce: true, greeting: true, encourage: false, forceOffline: false, attendCode: isIOS, qrScan: true };
-        let professorGlobal = { name: '', nfcSerial: '' }; // global professor NFC, independent of courses
+        let professorGlobal = { name: '', nfcSerial: '', pwHash: '' }; // global professor auth, independent of courses
 
         function loadSettings() {
             const saved = localStorage.getItem(SETTINGS_KEY);
@@ -891,14 +891,22 @@
         }
 
         // ---- Auth (professor NFC or QR) ----
+        function professorHasAuth() {
+            return !!(professorGlobal.nfcSerial || professorGlobal.pwHash);
+        }
+
         function requireAuth(actionName, callback) {
-            if (!professorGlobal.nfcSerial) {
+            if (!professorHasAuth()) {
                 setStatus('Secure the app first — open menu ☰ > Secure with Staff Card or Password', 'error');
                 playBoo();
                 return;
             }
             authCallback = callback;
             document.getElementById('authActionName').textContent = actionName;
+            // Show/hide auth buttons based on registered methods
+            const hasNfc = professorGlobal.nfcSerial && !professorGlobal.nfcSerial.startsWith('pw:');
+            document.getElementById('authNFCBtn').style.display = hasNfc ? '' : 'none';
+            document.getElementById('authPWBtn').style.display = professorGlobal.pwHash ? '' : 'none';
             document.getElementById('authModal').classList.add('active');
         }
         function closeAuthModal() {
@@ -906,8 +914,8 @@
             authCallback = null;
         }
         function authWithNFC() {
-            if (!professorGlobal.nfcSerial) {
-                setStatus('Professor not registered', 'error');
+            if (!professorGlobal.nfcSerial || professorGlobal.nfcSerial.startsWith('pw:')) {
+                setStatus('Professor NFC card not registered', 'error');
                 return;
             }
             const cb = authCallback;
@@ -922,9 +930,9 @@
             if (!pw) return;
             const enc = new TextEncoder();
             const hash = await crypto.subtle.digest('SHA-256', enc.encode(pw));
-            const serial = 'pw:' + btoa(String.fromCharCode(...new Uint8Array(hash))).slice(0, 16);
+            const hashStr = 'pw:' + btoa(String.fromCharCode(...new Uint8Array(hash))).slice(0, 16);
             const cb = authCallback;
-            if (serial === professorGlobal.nfcSerial) {
+            if (hashStr === professorGlobal.pwHash || hashStr === professorGlobal.nfcSerial) {
                 authCallback = null;
                 document.getElementById('authModal').classList.remove('active');
                 playBeep();
@@ -943,7 +951,7 @@
                 r.addEventListener('reading', ({ serialNumber }) => {
                     ac.abort();
                     const serial = serialNumber || 'unknown';
-                    if (serial === professorGlobal.nfcSerial) {
+                    if (serial === professorGlobal.nfcSerial || (!professorGlobal.nfcSerial && serial === professorGlobal.pwHash)) {
                         playBeep();
                         speakName(professorGlobal.name || 'Professor');
                         setStatus('Authorized by professor', 'success');
@@ -954,7 +962,7 @@
                     }
                 });
             } catch(e) {
-                setStatus('NFC scan failed. Use master password instead.', 'error');
+                setStatus('NFC scan failed. Use password instead.', 'error');
             }
         }
 
@@ -966,7 +974,7 @@
                 return;
             }
             const backup = {
-                version: 'v7.9',
+                version: 'v8.0',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -1075,7 +1083,7 @@
                 courses = {};
                 activeCourse = null;
                 students = [];
-                professorGlobal = { name: '', nfcSerial: '' };
+                professorGlobal = { name: '', nfcSerial: '', pwHash: '' };
                 settings = { announce: true, greeting: true, encourage: false };
                 _encKeyCache = null;
                 updateToggleUI();
@@ -1127,10 +1135,32 @@
         }
 
         async function showWelcomeScreen(serial, method) {
-            professorGlobal.nfcSerial = serial;
+            if (method === 'nfc') {
+                professorGlobal.nfcSerial = serial;
+            } else if (method === 'password') {
+                professorGlobal.pwHash = serial;
+                if (!professorGlobal.nfcSerial) professorGlobal.nfcSerial = serial;
+            }
             saveProfessor();
             playBeep();
             speakName(professorGlobal.name || 'Professor');
+
+            // Prompt to also register the other method
+            if (method === 'nfc' && !professorGlobal.pwHash) {
+                setTimeout(() => {
+                    if (confirm('Also set a password as backup? (Recommended)')) {
+                        registerProfPassword();
+                    }
+                }, 500);
+            } else if (method === 'password' && (!professorGlobal.nfcSerial || professorGlobal.nfcSerial.startsWith('pw:'))) {
+                if (!isIOS) {
+                    setTimeout(() => {
+                        if (confirm('Also register your NFC staff card? (Recommended)')) {
+                            startProfNFCScan();
+                        }
+                    }, 500);
+                }
+            }
 
             // Announce welcome message
             const welcomeMsg = getWelcomeMsg();
@@ -1164,7 +1194,7 @@
                 ${installHtml}
                 <p style="color:#38bdf8;font-weight:600">${isPWA ? 'Upload student list. File format:' : 'Step 2: Upload student list. File format:'}</p>
                 <div style="background:#0f172a;border-radius:6px;padding:10px;margin:8px auto;font-family:monospace;font-size:0.8rem;color:#e2e8f0;text-align:left;max-width:250px">
-                    PBS1000 Sample Course<br>
+                    PBS 1000 Sample Course<br>
                     Professor Mary Chen<br>
                     Peter Adoby,1234<br>
                     Peter Bai,5432<br>
@@ -1217,12 +1247,10 @@
             }
         }
 
-        // ---- Professor NFC Registration ----
+        // ---- Professor Registration ----
         function registerProfessor(method) {
-            if (professorGlobal.nfcSerial) {
-                requireAuth('Re-register Professor', () => {
-                    professorGlobal.nfcSerial = '';
-                    saveProfessor();
+            if (professorHasAuth()) {
+                requireAuth('Register Professor ' + (method === 'password' ? 'Password' : 'NFC'), () => {
                     if (method === 'password') registerProfPassword();
                     else startProfNFCScan();
                 });
@@ -1239,22 +1267,22 @@
                 playBoo();
                 return;
             }
-            // Hash password and use as professor serial
             const enc = new TextEncoder();
             const hash = await crypto.subtle.digest('SHA-256', enc.encode(pw));
-            const serial = 'pw:' + btoa(String.fromCharCode(...new Uint8Array(hash))).slice(0, 16);
-            professorGlobal.nfcSerial = serial;
-            professorGlobal.authType = 'password';
-            professorGlobal.pwHash = serial;
+            const hashStr = 'pw:' + btoa(String.fromCharCode(...new Uint8Array(hash))).slice(0, 16);
+            professorGlobal.pwHash = hashStr;
+            // If no NFC registered yet, also set nfcSerial for backward compat
+            if (!professorGlobal.nfcSerial) {
+                professorGlobal.nfcSerial = hashStr;
+            }
             saveProfessor();
             if (students.length > 0) {
-                students[0].nfcSerial = serial;
                 students[0].timestamps.push(getNowTimestamp('password'));
                 await saveActiveCourse();
             }
             playBeep();
             speakName(professorGlobal.name || 'Professor');
-            setStatus('Professor registered with password', 'success');
+            setStatus('Professor password registered', 'success');
             updateProfStatus();
         }
 
@@ -1289,16 +1317,23 @@
             }
             playBeep();
             speakName(professorGlobal.name || 'Professor');
-            setStatus(`Professor registered (${method}): ${serial.slice(-8)}`, 'success');
+            setStatus(`Professor NFC registered: ${serial.slice(-8)}`, 'success');
             updateProfStatus();
         }
 
         function updateProfStatus() {
             const el = document.getElementById('profStatus');
             const name = professorGlobal.name || (students.length > 0 ? students[0].name : 'Professor');
-            el.innerHTML = professorGlobal.nfcSerial
-                ? `<span style="color:#10b981">${escapeHTML(name)}: &#10003; ${professorGlobal.nfcSerial.slice(-8)}</span>`
-                : `<span style="color:#f59e0b">${escapeHTML(name)}: Not registered</span>`;
+            if (!professorHasAuth()) {
+                el.innerHTML = `<span style="color:#f59e0b">${escapeHTML(name)}: Not registered</span>`;
+                return;
+            }
+            const hasNfc = professorGlobal.nfcSerial && !professorGlobal.nfcSerial.startsWith('pw:');
+            const hasPw = !!professorGlobal.pwHash;
+            let methods = [];
+            if (hasNfc) methods.push('NFC &#10003;');
+            if (hasPw) methods.push('Password &#10003;');
+            el.innerHTML = `<span style="color:#10b981">${escapeHTML(name)}: ${methods.join(' | ')}</span>`;
         }
 
         // ---- Audio ----
@@ -1762,7 +1797,7 @@
                 }
 
             } else if (currentMode === 'manual') {
-                if (serial === professorGlobal.nfcSerial) {
+                if (professorGlobal.nfcSerial && serial === professorGlobal.nfcSerial) {
                     const s = students[currentTarget];
                     const ts = getNowTimestamp('manual');
                     s.timestamps.push(ts);
@@ -2073,7 +2108,7 @@
 
         // ---- Manual Attendance (double confirmation + professor card) ----
         function manualAttend(studentId) {
-            if (!professorGlobal.nfcSerial) {
+            if (!professorHasAuth()) {
                 setStatus('Secure the app first — open menu ☰ > Secure with Staff Card or Password', 'error');
                 playBoo();
                 return;
@@ -2893,9 +2928,9 @@
             loadCourses();
 
             // Load sample course if professor is registered but no courses exist
-            if (professorGlobal.nfcSerial && Object.keys(courses).length === 0) {
+            if (professorHasAuth() && Object.keys(courses).length === 0) {
                 await addCourse({
-                    title: 'PBS1000 Sample Course',
+                    title: 'PBS 1000 Sample Course',
                     students: [
                         { name: 'Peter Adoby', last4: '1234' },
                         { name: 'Peter Bai', last4: '5432' },
@@ -2909,10 +2944,10 @@
             await loadActiveCourse();
             updateTitle();
             renderAll();
-            if (!professorGlobal.nfcSerial && Object.keys(courses).length === 0) {
+            if (!professorHasAuth() && Object.keys(courses).length === 0) {
                 // Fresh app — show welcome modal
                 document.getElementById('welcomeModal').classList.add('active');
-            } else if (!professorGlobal.nfcSerial) {
+            } else if (!professorHasAuth()) {
                 setStatus('Secure the app first — open menu ☰ > Secure with Staff Card or Password', 'info');
             } else if (Object.keys(courses).length === 0) {
                 setStatus('No course loaded — open menu ☰ > Upload Student List', 'info');
