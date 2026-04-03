@@ -1,8 +1,8 @@
 # User & Unit Testing Specification
 
 **Project:** NFC/QR Code Smart Student Attendance PWA
-**Version:** v8.3
-**Last Updated:** 2026-04-02
+**Version:** v8.4
+**Last Updated:** 2026-04-03
 **Author:** BrianKei (cwk)
 
 ---
@@ -58,6 +58,22 @@ All testing is manual due to the zero-build, single-file architecture. Tests req
 | Precondition | Professor password set |
 | Steps | 1. Trigger protected action<br>2. Tap "Password"<br>3. Enter correct password |
 | Expected | Action proceeds |
+
+### TC-005: Dual Auth — Register Both Methods
+
+| Field | Value |
+|-------|-------|
+| Precondition | Fresh install |
+| Steps | 1. Open app<br>2. Choose "Secure with Staff Card (NFC)"<br>3. Scan NFC card<br>4. App prompts "Also set a password as backup?"<br>5. Tap Yes, enter password |
+| Expected | Both NFC and password registered; prof status shows "NFC | Password" |
+
+### TC-006: Dual Auth — Auth Modal Shows Registered Methods
+
+| Field | Value |
+|-------|-------|
+| Precondition | Only password registered (no NFC) |
+| Steps | 1. Trigger protected action |
+| Expected | Auth modal shows only "Password" button; "Scan NFC" button hidden |
 
 ---
 
@@ -284,15 +300,24 @@ All testing is manual due to the zero-build, single-file architecture. Tests req
 
 | Field | Value |
 |-------|-------|
-| Steps | 1. Open menu<br>2. Tap Export Attendance<br>3. Professor auth |
-| Expected | Encrypted CSV file downloaded |
+| Steps | 1. Open menu<br>2. Tap Export CSV |
+| Expected | CSV downloaded with per-date columns; each cell contains "time type detail"; multiple entries separated by semicolons |
 
-### TC-081: Export Blackboard Format
+### TC-081: Share CSV
 
 | Field | Value |
 |-------|-------|
-| Steps | 1. Open menu<br>2. Tap Blackboard Export<br>3. Configure column name<br>4. Download |
-| Expected | Blackboard-compatible file downloaded |
+| Precondition | Android Chrome with course data |
+| Steps | 1. Open menu<br>2. Tap Share CSV<br>3. Native share sheet appears<br>4. Choose Gmail |
+| Expected | Gmail opens with CSV file attached; file contains per-date attendance columns |
+
+### TC-081b: Share CSV — Fallback
+
+| Field | Value |
+|-------|-------|
+| Precondition | Browser without Web Share file support |
+| Steps | 1. Open menu<br>2. Tap Share CSV |
+| Expected | CSV file downloaded directly; status shows "attach it to your email manually" |
 
 ### TC-082: Backup Data
 

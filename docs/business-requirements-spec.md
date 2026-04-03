@@ -1,8 +1,8 @@
 # Business Requirements Specification
 
 **Project:** NFC/QR Code Smart Student Attendance PWA
-**Version:** v8.3
-**Last Updated:** 2026-04-02
+**Version:** v8.4
+**Last Updated:** 2026-04-03
 **Author:** BrianKei (cwk)
 
 ---
@@ -37,6 +37,8 @@ Provide a fast, reliable, and privacy-respecting classroom attendance tracking s
 | BR-001 | Professor can secure the app with NFC staff card or password on first launch | Must |
 | BR-002 | Sensitive operations require professor re-authentication (NFC or password) | Must |
 | BR-003 | Professor NFC card is globally authorized across all courses | Must |
+| BR-004 | Professor can register both NFC staff card and password (dual auth) | Must |
+| BR-005 | Auth modal dynamically shows only registered authentication methods | Must |
 
 ### 2.2 Course Management
 
@@ -76,9 +78,9 @@ Provide a fast, reliable, and privacy-respecting classroom attendance tracking s
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | BR-040 | Export attendance as encrypted CSV | Must |
-| BR-041 | Export in Blackboard LMS format | Should |
+| BR-041 | CSV export with per-date columns (time, type, detail per cell) | Must |
 | BR-042 | Backup/restore all app data with passphrase encryption | Must |
-| BR-043 | Transfer data via Bluetooth file sharing | Should |
+| BR-043 | Share CSV via native share sheet (Web Share API) to Gmail, WhatsApp, etc. | Must |
 | BR-044 | Clear all data with professor authorization | Must |
 | BR-045 | View attendance summary (present/total count per day) | Must |
 | BR-046 | View individual student attendance history (Log button) | Must |

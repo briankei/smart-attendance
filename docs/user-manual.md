@@ -1,8 +1,8 @@
 # User Manual
 
 **NFC/QR Code Smart Student Attendance PWA**
-**Version:** v8.3
-**Last Updated:** 2026-04-02
+**Version:** v8.4
+**Last Updated:** 2026-04-03
 
 ---
 

@@ -1,8 +1,8 @@
 # System Design Specification
 
 **Project:** NFC/QR Code Smart Student Attendance PWA
-**Version:** v8.3
-**Last Updated:** 2026-04-02
+**Version:** v8.4
+**Last Updated:** 2026-04-03
 **Author:** BrianKei (cwk)
 
 ---
@@ -209,7 +209,7 @@ media-src 'self' blob:;
 ### 5.1 Cache Versioning
 
 ```javascript
-const CACHE_NAME = 'smart-attendance-v8.3';
+const CACHE_NAME = 'smart-attendance-v8.4';
 ```
 
 Cache name must be bumped with every version change to invalidate stale assets.
@@ -271,3 +271,4 @@ python3 server.py
 | v8.1 | 2026-04-02 | Fix Share CSV Gmail attachment MIME type |
 | v8.2 | 2026-04-02 | Fix Share CSV using text/csv for Android Chrome compatibility |
 | v8.3 | 2026-04-02 | Restructured CSV export with per-date columns |
+| v8.4 | 2026-04-03 | 8-digit student numbers, updated help and docs |
