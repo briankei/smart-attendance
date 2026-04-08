@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="author" content="cwk">
     <meta name="copyright" content="Copyright 2026 cwk. All rights reserved.">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: capacitor: http://localhost; script-src 'self' 'unsafe-inline' https: capacitor:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https: capacitor: http://localhost; manifest-src 'self'; media-src 'self' blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob: capacitor:; img-src * 'self' data: blob:; connect-src * 'self' capacitor:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NFC/Code Smart Attendance PWA</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0f172a">
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <script src="qrcode-lib.js"></script>
+    <script src="qrcode-lib.js" onerror="console.warn('qrcode-lib.js not loaded')"></script>
     <script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
