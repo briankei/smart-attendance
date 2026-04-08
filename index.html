@@ -1410,11 +1410,15 @@
                 const enc = ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)];
                 text += '. ' + enc;
             }
-            const msg = new SpeechSynthesisUtterance(text);
-            msg.lang = 'en-US';
-            msg.rate = 0.9;
-            msg.volume = 1;
-            speechSynthesis.speak(msg);
+            // Cancel any pending speech and use delay for WebView compatibility
+            speechSynthesis.cancel();
+            setTimeout(() => {
+                const msg = new SpeechSynthesisUtterance(text);
+                msg.lang = 'en-US';
+                msg.rate = 0.9;
+                msg.volume = 1;
+                speechSynthesis.speak(msg);
+            }, 100);
         }
 
         function playBoo() {
@@ -3313,6 +3317,12 @@
             }
 
             setTimeout(_vi, 1000);
+
+            // Warm up speech synthesis for WebView (load voices)
+            if ('speechSynthesis' in window) {
+                speechSynthesis.getVoices();
+                speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+            }
         })();
     </script>
 
