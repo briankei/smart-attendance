@@ -325,7 +325,7 @@
         <button class="top-btn" id="btnQRScan" onclick="setMode('qrscan')" style="background:linear-gradient(135deg,#ec4899,#be185d);color:#fff;display:none">Attend QR</button>
         <button class="top-btn" onclick="showGames()" style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff">Games</button>
         <button class="top-btn" id="btnCheckin" onclick="openWifiCheckin()" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff">WiFi Check-in</button>
-        <button class="top-btn" id="btnBLE" onclick="openBleAttend()" style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff">BLE Attend</button>
+        <button class="top-btn" id="btnBLE" onclick="toggleBleAttend()" style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff">BLE Attend</button>
     </div>
     <input type="file" id="uploadFile" accept=".txt,.csv,.text" class="hidden">
     <input type="file" id="restoreFile" accept=".json" class="hidden">
@@ -455,15 +455,20 @@
 
     <!-- BLE Attendance modal -->
     <div class="modal-overlay" id="bleAttendModal">
-        <div class="modal" style="max-width:400px">
+        <div class="modal" style="max-width:420px">
             <h3 style="color:#6366f1">BLE Attendance</h3>
             <div id="bleStatus" style="text-align:center;color:#94a3b8;font-size:0.85rem;margin-bottom:8px">Starting Bluetooth broadcast...</div>
-            <div id="bleQRCode" style="text-align:center;margin:12px 0;background:#fff;border-radius:12px;padding:16px;display:inline-block;width:100%"></div>
-            <p style="font-size:0.75rem;color:#64748b;text-align:center">Students scan this QR code, then connect via Bluetooth and enter their student number.</p>
+            <div style="display:flex;gap:8px;justify-content:center;margin:10px 0">
+                <button class="modal-btn" id="bleModeRegBtn" style="background:#f59e0b;color:#fff;flex:1" onclick="setBleMode('register')">Register</button>
+                <button class="modal-btn" id="bleModeCheckinBtn" style="background:#10b981;color:#fff;flex:1" onclick="setBleMode('checkin')">Check In</button>
+            </div>
+            <div id="bleModeDesc" style="text-align:center;font-size:0.75rem;color:#64748b;margin-bottom:8px">Register: save student's BLE device. Check In: auto-attend by saved device.</div>
+            <div id="bleQRCode" style="text-align:center;margin:8px 0;background:#fff;border-radius:12px;padding:16px;display:inline-block;width:100%"></div>
             <div id="bleCheckinCount" style="text-align:center;color:#10b981;font-size:0.9rem;font-weight:600;margin:8px 0"></div>
             <div id="bleCheckinLog" style="max-height:150px;overflow-y:auto;font-size:0.8rem;color:#94a3b8;margin:8px 0"></div>
             <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
-                <button class="modal-btn modal-cancel" onclick="closeBleAttend()">Stop & Close</button>
+                <button class="modal-btn" style="background:#6366f1;color:#fff" onclick="minimizeBle()">Run in Background</button>
+                <button class="modal-btn modal-cancel" onclick="closeBleAttend()">Stop BLE</button>
             </div>
         </div>
     </div>
@@ -1694,7 +1699,7 @@
                     ${manualBtn}${qrBtn}${historyBtn}${reregBtn}
                     <span class="student-status">
                         ${nfcStatus}
-                        ${lastTs ? `<br><span class="last-seen">${lastTs}</span>${lastRemark && ['nfc','qr code','manual'].includes(lastRemark) ? `<span class="remark-tag remark-${lastRemark}">${lastRemark}</span>` : ''}` : ''}
+                        ${lastTs ? `<br><span class="last-seen">${lastTs}</span>${lastRemark && ['nfc','qr code','manual','ble','wifi'].includes(lastRemark) ? `<span class="remark-tag remark-${lastRemark}">${lastRemark}</span>` : ''}` : ''}
                     </span>
                 `;
 
@@ -2050,7 +2055,7 @@
                     const dateParts = parts[0].split('-'); // YYYY-MM-DD
                     const mmddyyyy = dateParts[1] + dateParts[2] + dateParts[0];
                     const time = parts[1] || '';
-                    const remarkTag = remark && ['nfc','qr code','manual'].includes(remark) ? `<span class="remark-tag remark-${remark}">${remark}</span>` : '';
+                    const remarkTag = remark && ['nfc','qr code','manual','ble','wifi'].includes(remark) ? `<span class="remark-tag remark-${remark}">${remark}</span>` : '';
                     return `<div class="h-date">${mmddyyyy} ${time} ${remarkTag}</div>`;
                 });
                 list.innerHTML = entries.join('');
@@ -2899,10 +2904,37 @@
         // ---- BLE Attendance (native Capacitor plugin) ----
         let bleAttendActive = false;
         let bleCheckinTotal = 0;
+        let bleMode = 'checkin'; // 'register' or 'checkin'
         const BLE_SERVICE_UUID = '12345678-1234-1234-1234-123456789abc';
+        const BLE_DEVICES_KEY = 'ble_registered_devices'; // {deviceAddress: studentId}
 
         function isCapacitorNative() {
             return window.Capacitor && window.Capacitor.isNativePlatform();
+        }
+
+        function loadBleDevices() {
+            try { return JSON.parse(localStorage.getItem(BLE_DEVICES_KEY) || '{}'); } catch (e) { return {}; }
+        }
+        function saveBleDevices(devices) {
+            localStorage.setItem(BLE_DEVICES_KEY, JSON.stringify(devices));
+        }
+
+        function toggleBleAttend() {
+            if (bleAttendActive) {
+                // Already running — reopen the modal
+                document.getElementById('bleAttendModal').classList.add('active');
+                return;
+            }
+            openBleAttend();
+        }
+
+        function setBleMode(mode) {
+            bleMode = mode;
+            document.getElementById('bleModeRegBtn').style.opacity = mode === 'register' ? '1' : '0.5';
+            document.getElementById('bleModeCheckinBtn').style.opacity = mode === 'checkin' ? '1' : '0.5';
+            document.getElementById('bleModeDesc').textContent = mode === 'register'
+                ? 'Register mode: student connects via BLE, their device address is saved with their student number.'
+                : 'Check-in mode: registered devices auto-attend. New devices prompted to register.';
         }
 
         async function openBleAttend() {
@@ -2918,18 +2950,16 @@
             bleCheckinTotal = 0;
             document.getElementById('bleCheckinLog').innerHTML = '';
             document.getElementById('bleCheckinCount').textContent = '';
+            setBleMode('checkin');
 
             const course = courses[activeCourse]?.title || 'SmartAttendance';
 
-            // Start BLE advertising via native plugin
             try {
                 const { BleAttendance } = window.Capacitor.Plugins;
                 const result = await BleAttendance.startAdvertising({ course: course });
                 document.getElementById('bleStatus').innerHTML =
                     '<span style="color:#10b981">&#9679;</span> Broadcasting BLE — ' + escapeHTML(course);
 
-                // Generate QR code with BLE check-in URL
-                // BLE is direct device-to-device, page served from GitHub Pages (no server needed)
                 const bleUrl = `https://briankei.github.io/smart-attendance/ble-checkin.html?course=${encodeURIComponent(course)}&device=SmartAttendance`;
                 document.getElementById('bleQRCode').innerHTML = generateQRCodeSVG(bleUrl, 200);
 
@@ -2945,39 +2975,84 @@
                     '<span style="color:#dc2626">BLE failed: ' + escapeHTML(e.message || 'Unknown error') + '</span>';
             }
 
+            updateBleButton();
             document.getElementById('bleAttendModal').classList.add('active');
         }
 
         function processBleCheckin(data) {
             const studentNo = data.studentNo || '';
+            const deviceAddress = data.deviceAddress || '';
             const last4 = studentNo.length >= 4 ? studentNo.slice(-4) : studentNo;
+            const devices = loadBleDevices();
+            const log = document.getElementById('bleCheckinLog');
 
-            // Find matching student
-            const match = students.find((s, i) => {
+            // Find matching student by studentNo/last4
+            const matchByNo = students.find((s, i) => {
                 if (i === 0) return false;
                 if (s.studentNo && s.studentNo === studentNo) return true;
                 if (s.last4 && s.last4 === last4) return true;
                 return false;
             });
 
-            const log = document.getElementById('bleCheckinLog');
+            // Find matching student by registered BLE device address
+            const registeredStudentId = devices[deviceAddress];
+            const matchByDevice = registeredStudentId != null ? students[registeredStudentId] : null;
 
-            if (match && !hasAttendedToday(match)) {
-                const ts = getNowTimestamp('ble');
-                match.timestamps.push(ts);
-                saveCourses();
-                bleCheckinTotal++;
-                playBeep();
-                speakName(match.name);
-                renderList(match.id, 'attend-highlight');
-                scrollToRow(match.id);
-                log.innerHTML = `<div style="color:#10b981">${escapeHTML(match.name)} &#10003; ${data.timestamp || ''}</div>` + log.innerHTML;
-                document.getElementById('bleCheckinCount').textContent =
-                    `${bleCheckinTotal} student${bleCheckinTotal !== 1 ? 's' : ''} checked in`;
-            } else if (match && hasAttendedToday(match)) {
-                log.innerHTML = `<div style="color:#64748b">${escapeHTML(match.name)} (already attended)</div>` + log.innerHTML;
+            if (bleMode === 'register') {
+                // Register mode: save device address with student
+                if (matchByNo) {
+                    devices[deviceAddress] = matchByNo.id;
+                    saveBleDevices(devices);
+                    playBeep();
+                    speakName(matchByNo.name);
+                    log.innerHTML = `<div style="color:#f59e0b">${escapeHTML(matchByNo.name)} registered BLE: ${escapeHTML(deviceAddress)}</div>` + log.innerHTML;
+                } else {
+                    log.innerHTML = `<div style="color:#dc2626">Unknown student: ${escapeHTML(studentNo)}</div>` + log.innerHTML;
+                    playBoo();
+                }
             } else {
-                log.innerHTML = `<div style="color:#f59e0b">Unknown: ${escapeHTML(studentNo)} via BLE</div>` + log.innerHTML;
+                // Check-in mode: auto-attend by device or student number
+                const match = matchByDevice || matchByNo;
+
+                if (match && !hasAttendedToday(match)) {
+                    // Auto-register device if not yet registered
+                    if (!registeredStudentId && deviceAddress) {
+                        devices[deviceAddress] = match.id;
+                        saveBleDevices(devices);
+                    }
+                    const ts = getNowTimestamp('ble|' + deviceAddress);
+                    match.timestamps.push(ts);
+                    saveCourses();
+                    bleCheckinTotal++;
+                    playBeep();
+                    speakName(match.name);
+                    renderList(match.id, 'attend-highlight');
+                    scrollToRow(match.id);
+                    log.innerHTML = `<div style="color:#10b981">${escapeHTML(match.name)} &#10003; ${escapeHTML(deviceAddress)}</div>` + log.innerHTML;
+                    document.getElementById('bleCheckinCount').textContent =
+                        `${bleCheckinTotal} student${bleCheckinTotal !== 1 ? 's' : ''} checked in`;
+                } else if (match && hasAttendedToday(match)) {
+                    log.innerHTML = `<div style="color:#64748b">${escapeHTML(match.name)} (already attended)</div>` + log.innerHTML;
+                } else {
+                    log.innerHTML = `<div style="color:#f59e0b">Unknown: ${escapeHTML(studentNo)} [${escapeHTML(deviceAddress)}]</div>` + log.innerHTML;
+                }
+            }
+        }
+
+        function minimizeBle() {
+            // Close modal but keep BLE running in background
+            document.getElementById('bleAttendModal').classList.remove('active');
+            setStatus('BLE Attend running in background — tap BLE Attend to reopen', 'info');
+        }
+
+        function updateBleButton() {
+            const btn = document.getElementById('btnBLE');
+            if (bleAttendActive) {
+                btn.style.boxShadow = '0 0 12px rgba(99,102,241,0.6)';
+                btn.textContent = '● BLE Active';
+            } else {
+                btn.style.boxShadow = '';
+                btn.textContent = 'BLE Attend';
             }
         }
 
@@ -2990,7 +3065,9 @@
                     BleAttendance.removeAllListeners();
                 } catch (e) { /* ignore */ }
             }
+            updateBleButton();
             document.getElementById('bleAttendModal').classList.remove('active');
+            setStatus('BLE Attend stopped', 'info');
         }
 
         // ---- WiFi Check-in (QR code + server polling) ----
