@@ -21,7 +21,7 @@ if not CLEAR_PASSWORD:
 lock = threading.Lock()
 
 # Only serve these files via HTTP
-ALLOWED_FILES = {'/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png', '/sw.js', '/checkin.html', '/ble-attendance.js'}
+ALLOWED_FILES = {'/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png', '/sw.js', '/checkin.html', '/ble-checkin.html', '/ble-attendance.js'}
 
 # Session tokens for WiFi check-in (rotated by professor's app)
 checkin_tokens = {}  # {token: {course, expires}}
