@@ -17,6 +17,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.ParcelUuid;
+import android.speech.tts.TextToSpeech;
 import android.util.Log;
 
 import androidx.core.app.ActivityCompat;
@@ -60,6 +61,23 @@ public class BleAttendancePlugin extends Plugin {
     private boolean isAdvertising = false;
     private String courseInfo = "";
     private PluginCall pendingCall = null;
+    private TextToSpeech tts;
+    private boolean ttsReady = false;
+
+    @Override
+    public void load() {
+        super.load();
+        tts = new TextToSpeech(getContext(), status -> {
+            if (status == TextToSpeech.SUCCESS) {
+                tts.setLanguage(java.util.Locale.US);
+                tts.setSpeechRate(0.9f);
+                ttsReady = true;
+                Log.d(TAG, "TTS initialized");
+            } else {
+                Log.e(TAG, "TTS init failed");
+            }
+        });
+    }
 
     @PluginMethod
     public void startAdvertising(PluginCall call) {
@@ -204,6 +222,19 @@ public class BleAttendancePlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("advertising", isAdvertising);
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void speak(PluginCall call) {
+        String text = call.getString("text", "");
+        if (text.isEmpty()) { call.resolve(); return; }
+        if (ttsReady && tts != null) {
+            tts.speak(text, TextToSpeech.QUEUE_ADD, null, "attendance_" + System.currentTimeMillis());
+            Log.d(TAG, "TTS speaking: " + text);
+        } else {
+            Log.w(TAG, "TTS not ready");
+        }
+        call.resolve();
     }
 
     @PluginMethod
@@ -380,6 +411,11 @@ public class BleAttendancePlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         stopAll();
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
+            tts = null;
+        }
         super.handleOnDestroy();
     }
 }
