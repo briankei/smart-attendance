@@ -10,6 +10,7 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0f172a">
     <link rel="apple-touch-icon" href="/icon-192.png">
+    <script src="/qrcode-lib.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -3006,168 +3007,30 @@
             return null;
         }
 
-        // ---- Offline QR Code Generator (pure JS, no external API) ----
+        // ---- QR Code Generator (uses qrcode-generator library) ----
         function generateQRCodeSVG(text, size) {
             const qrSize = size || 200;
-            const modules = generateQRModules(text);
-            const n = modules.length;
-            const cellSize = qrSize / n;
-            let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${qrSize}" height="${qrSize}" viewBox="0 0 ${n} ${n}" style="border-radius:8px">`;
-            svg += `<rect width="${n}" height="${n}" fill="#fff"/>`;
-            for (let y = 0; y < n; y++) {
-                for (let x = 0; x < n; x++) {
-                    if (modules[y][x]) svg += `<rect x="${x}" y="${y}" width="1" height="1" fill="#000"/>`;
-                }
-            }
-            svg += '</svg>';
-            return `<div style="text-align:center">
-                ${svg}
-                <div style="word-break:break-all;font-size:0.65rem;color:#0f172a;margin-top:8px;font-family:monospace;max-width:${qrSize}px;margin-left:auto;margin-right:auto">${escapeHTML(text)}</div>
-            </div>`;
-        }
+            try {
+                // Auto-detect type number (0 = auto)
+                const qr = qrcode(0, 'L');
+                qr.addData(text);
+                qr.make();
+                const count = qr.getModuleCount();
+                const cellSize = qrSize / count;
 
-        // Minimal QR Code encoder (Mode Byte, ECC L, Version 1-6)
-        function generateQRModules(text) {
-            const data = new TextEncoder().encode(text);
-            // Pick version based on data length (ECC L byte mode capacities)
-            const caps = [0,17,32,53,78,106,134,154,192,230,271];
-            let ver = 1;
-            for (let v = 1; v <= 10; v++) { if (data.length <= caps[v]) { ver = v; break; } }
-            if (data.length > caps[10]) ver = 10; // clamp
-
-            const size = ver * 4 + 17;
-            const grid = Array.from({length: size}, () => new Uint8Array(size));
-            const mask = Array.from({length: size}, () => new Uint8Array(size));
-
-            // Place finder patterns
-            function placeFinder(cx, cy) {
-                for (let dy = -3; dy <= 3; dy++) {
-                    for (let dx = -3; dx <= 3; dx++) {
-                        const x = cx + dx, y = cy + dy;
-                        if (x < 0 || x >= size || y < 0 || y >= size) continue;
-                        const ring = Math.max(Math.abs(dx), Math.abs(dy));
-                        grid[y][x] = (ring !== 2) ? 1 : 0;
-                        mask[y][x] = 1;
+                let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${qrSize}" height="${qrSize}" viewBox="0 0 ${count} ${count}" style="border-radius:8px">`;
+                svg += `<rect width="${count}" height="${count}" fill="#fff"/>`;
+                for (let r = 0; r < count; r++) {
+                    for (let c = 0; c < count; c++) {
+                        if (qr.isDark(r, c)) svg += `<rect x="${c}" y="${r}" width="1" height="1" fill="#000"/>`;
                     }
                 }
-                // Separator
-                for (let i = -4; i <= 4; i++) {
-                    for (const [dx, dy] of [[i, -4], [i, 4], [-4, i], [4, i]]) {
-                        const x = cx + dx, y = cy + dy;
-                        if (x >= 0 && x < size && y >= 0 && y < size && !mask[y][x]) {
-                            grid[y][x] = 0; mask[y][x] = 1;
-                        }
-                    }
-                }
+                svg += '</svg>';
+                return `<div style="text-align:center">${svg}</div>`;
+            } catch (e) {
+                // Fallback: show URL as text
+                return `<div style="text-align:center;word-break:break-all;font-size:0.75rem;color:#0f172a;font-family:monospace;padding:20px;background:#f1f5f9;border-radius:8px">${escapeHTML(text)}</div>`;
             }
-            placeFinder(3, 3);
-            placeFinder(size - 4, 3);
-            placeFinder(3, size - 4);
-
-            // Timing patterns
-            for (let i = 8; i < size - 8; i++) {
-                if (!mask[6][i]) { grid[6][i] = (i % 2 === 0) ? 1 : 0; mask[6][i] = 1; }
-                if (!mask[i][6]) { grid[i][6] = (i % 2 === 0) ? 1 : 0; mask[i][6] = 1; }
-            }
-
-            // Dark module
-            grid[size - 8][8] = 1; mask[size - 8][8] = 1;
-
-            // Reserve format info areas
-            for (let i = 0; i < 8; i++) {
-                if (!mask[8][i]) mask[8][i] = 1;
-                if (!mask[8][size - 1 - i]) mask[8][size - 1 - i] = 1;
-                if (!mask[i][8]) mask[i][8] = 1;
-                if (!mask[size - 1 - i][8]) mask[size - 1 - i][8] = 1;
-            }
-            if (!mask[8][8]) mask[8][8] = 1;
-
-            // Alignment patterns for version >= 2
-            if (ver >= 2) {
-                const pos = [6, size - 7];
-                if (ver >= 7) pos.splice(1, 0, Math.floor((6 + size - 7) / 2));
-                for (const ay of pos) {
-                    for (const ax of pos) {
-                        if (mask[ay][ax]) continue; // skip if overlaps finder
-                        for (let dy = -2; dy <= 2; dy++) {
-                            for (let dx = -2; dx <= 2; dx++) {
-                                const x = ax + dx, y = ay + dy;
-                                if (x >= 0 && x < size && y >= 0 && y < size) {
-                                    const ring = Math.max(Math.abs(dx), Math.abs(dy));
-                                    grid[y][x] = (ring === 0 || ring === 2) ? 1 : 0;
-                                    mask[y][x] = 1;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Encode data bits (simplified: byte mode, ECC L)
-            const totalBits = [];
-            // Mode indicator: 0100 (byte)
-            totalBits.push(0,1,0,0);
-            // Character count (8 bits for ver 1-9, 16 for 10+)
-            const ccBits = ver <= 9 ? 8 : 16;
-            for (let i = ccBits - 1; i >= 0; i--) totalBits.push((data.length >> i) & 1);
-            // Data
-            for (const b of data) {
-                for (let i = 7; i >= 0; i--) totalBits.push((b >> i) & 1);
-            }
-            // Terminator
-            for (let i = 0; i < 4 && totalBits.length < caps[ver] * 8; i++) totalBits.push(0);
-            // Pad to byte boundary
-            while (totalBits.length % 8 !== 0) totalBits.push(0);
-            // Pad bytes 0xEC, 0x11
-            const padBytes = [0xEC, 0x11];
-            let pi = 0;
-            while (totalBits.length < caps[ver] * 8) {
-                const pb = padBytes[pi % 2]; pi++;
-                for (let i = 7; i >= 0; i--) totalBits.push((pb >> i) & 1);
-            }
-
-            // Place data bits (upward/downward columns, right to left, skip col 6)
-            let bitIdx = 0;
-            let upward = true;
-            for (let col = size - 1; col >= 0; col -= 2) {
-                if (col === 6) col = 5; // skip timing column
-                const rows = upward ? Array.from({length: size}, (_, i) => size - 1 - i) : Array.from({length: size}, (_, i) => i);
-                for (const row of rows) {
-                    for (const c of [col, col - 1]) {
-                        if (c < 0 || mask[row][c]) continue;
-                        grid[row][c] = bitIdx < totalBits.length ? totalBits[bitIdx] : 0;
-                        bitIdx++;
-                    }
-                }
-                upward = !upward;
-            }
-
-            // Apply mask pattern 0: (row + col) % 2 === 0
-            for (let y = 0; y < size; y++) {
-                for (let x = 0; x < size; x++) {
-                    if (!mask[y][x] && (y + x) % 2 === 0) {
-                        grid[y][x] ^= 1;
-                    }
-                }
-            }
-
-            // Write format info (ECC L = 01, mask 0 = 000, format = 01000)
-            // With BCH error correction: 0x77C0... simplified: use precomputed
-            const formatBits = [1,1,1,0,1,1,1,1,1,0,0,0,1,0,0]; // L, mask 0
-            for (let i = 0; i < 15; i++) {
-                const bit = formatBits[i];
-                // Horizontal
-                if (i < 6) grid[8][i] = bit;
-                else if (i === 6) grid[8][7] = bit;
-                else if (i === 7) grid[8][8] = bit;
-                else grid[8][size - 15 + i] = bit;
-                // Vertical
-                if (i < 7) grid[size - 1 - i][8] = bit;
-                else if (i === 7) grid[8][8] = bit;
-                else grid[14 - i][8] = bit;
-            }
-
-            return grid;
         }
 
         async function openWifiCheckin() {
