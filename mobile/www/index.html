@@ -5307,11 +5307,6 @@ var qrcode = function() {
 
         function setBleMode(mode) {
             bleMode = mode;
-            document.getElementById('bleModeRegBtn').style.opacity = mode === 'register' ? '1' : '0.5';
-            document.getElementById('bleModeCheckinBtn').style.opacity = mode === 'checkin' ? '1' : '0.5';
-            document.getElementById('bleModeDesc').textContent = mode === 'register'
-                ? 'Register mode: student connects via BLE, their device address is saved with their student number.'
-                : 'Check-in mode: registered devices auto-attend. New devices prompted to register.';
         }
 
         async function openBleAttend() {
@@ -5331,14 +5326,19 @@ var qrcode = function() {
 
             const course = courses[activeCourse]?.title || 'SmartAttendance';
 
+            // Show QR code immediately (works even if BLE fails)
+            const bleUrl = `https://briankei.github.io/smart-attendance/ble-checkin.html?course=${encodeURIComponent(course)}&device=SmartAttendance`;
+            document.getElementById('bleQRCode').innerHTML = generateQRCodeSVG(bleUrl, 200);
+
+            updateBleButton();
+            document.getElementById('bleAttendModal').classList.add('active');
+
+            // Start BLE advertising
             try {
                 const { BleAttendance } = window.Capacitor.Plugins;
                 const result = await BleAttendance.startAdvertising({ course: course });
                 document.getElementById('bleStatus').innerHTML =
                     '<span style="color:#10b981">&#9679;</span> Broadcasting BLE — ' + escapeHTML(course);
-
-                const bleUrl = `https://briankei.github.io/smart-attendance/ble-checkin.html?course=${encodeURIComponent(course)}&device=SmartAttendance`;
-                document.getElementById('bleQRCode').innerHTML = generateQRCodeSVG(bleUrl, 200);
 
                 // Listen for student check-ins from native layer
                 BleAttendance.addListener('bleEvent', (data) => {
@@ -5351,9 +5351,6 @@ var qrcode = function() {
                 document.getElementById('bleStatus').innerHTML =
                     '<span style="color:#dc2626">BLE failed: ' + escapeHTML(e.message || 'Unknown error') + '</span>';
             }
-
-            updateBleButton();
-            document.getElementById('bleAttendModal').classList.add('active');
         }
 
         function processBleCheckin(data) {
