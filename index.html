@@ -1398,7 +1398,7 @@
         ];
 
         function speakName(name) {
-            if (!settings.announce || !('speechSynthesis' in window)) return;
+            if (!settings.announce) return;
             let text = '';
             if (settings.greeting) {
                 const hour = new Date().getHours();
@@ -1410,15 +1410,24 @@
                 const enc = ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)];
                 text += '. ' + enc;
             }
-            // Cancel any pending speech and use delay for WebView compatibility
-            speechSynthesis.cancel();
-            setTimeout(() => {
-                const msg = new SpeechSynthesisUtterance(text);
-                msg.lang = 'en-US';
-                msg.rate = 0.9;
-                msg.volume = 1;
-                speechSynthesis.speak(msg);
-            }, 100);
+            // Use native TTS in Capacitor, fallback to Web Speech API
+            if (isCapacitorNative()) {
+                try {
+                    const { BleAttendance } = window.Capacitor.Plugins;
+                    BleAttendance.speak({ text: text });
+                    return;
+                } catch (e) { /* fallback below */ }
+            }
+            if ('speechSynthesis' in window) {
+                speechSynthesis.cancel();
+                setTimeout(() => {
+                    const msg = new SpeechSynthesisUtterance(text);
+                    msg.lang = 'en-US';
+                    msg.rate = 0.9;
+                    msg.volume = 1;
+                    speechSynthesis.speak(msg);
+                }, 100);
+            }
         }
 
         function playBoo() {
