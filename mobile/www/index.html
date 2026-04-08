@@ -2915,12 +2915,8 @@
                     '<span style="color:#10b981">&#9679;</span> Broadcasting BLE — ' + escapeHTML(course);
 
                 // Generate QR code with BLE check-in URL
-                // Use device IP for hotspot, fallback to GitHub Pages
-                let bleBaseUrl = 'https://briankei.github.io/smart-attendance';
-                if (result.ipAddress && result.ipAddress !== '0.0.0.0') {
-                    bleBaseUrl = `https://${result.ipAddress}:8443`;
-                }
-                const bleUrl = `${bleBaseUrl}/ble-checkin.html?course=${encodeURIComponent(course)}&device=SmartAttendance`;
+                // BLE is direct device-to-device, page served from GitHub Pages (no server needed)
+                const bleUrl = `https://briankei.github.io/smart-attendance/ble-checkin.html?course=${encodeURIComponent(course)}&device=SmartAttendance`;
                 document.getElementById('bleQRCode').innerHTML = generateQRCodeSVG(bleUrl, 200);
 
                 // Listen for student check-ins from native layer
