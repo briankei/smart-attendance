@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Check-In</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a; color: #e2e8f0; min-height: 100vh;
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+        }
+        .card {
+            background: #1e293b; border-radius: 16px; padding: 32px; max-width: 380px;
+            width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        h1 { text-align: center; font-size: 1.3rem; color: #38bdf8; margin-bottom: 6px; }
+        .course-name { text-align: center; color: #94a3b8; font-size: 0.9rem; margin-bottom: 24px; }
+        label { display: block; color: #94a3b8; font-size: 0.85rem; margin-bottom: 6px; }
+        input {
+            width: 100%; padding: 14px; border-radius: 10px; border: 1px solid #334155;
+            background: #0f172a; color: #e2e8f0; font-size: 1.1rem; text-align: center;
+            letter-spacing: 2px; margin-bottom: 16px;
+        }
+        input:focus { outline: none; border-color: #38bdf8; }
+        .btn {
+            width: 100%; padding: 16px; border: none; border-radius: 10px;
+            font-size: 1.1rem; font-weight: 700; cursor: pointer; transition: transform 0.15s;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+        .btn-disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+        .status {
+            text-align: center; padding: 12px; border-radius: 8px; margin-top: 16px;
+            font-size: 0.9rem; display: none;
+        }
+        .status-success { background: #14532d; border: 1px solid #16a34a; color: #86efac; display: block; }
+        .status-error { background: #450a0a; border: 1px solid #dc2626; color: #fca5a5; display: block; }
+        .status-sending { background: #0c4a6e; border: 1px solid #0369a1; color: #7dd3fc; display: block; }
+        .footer { text-align: center; margin-top: 20px; font-size: 0.7rem; color: #475569; }
+        .check-icon { font-size: 3rem; text-align: center; margin: 16px 0; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Student Check-In</h1>
+        <div class="course-name" id="courseName">Loading...</div>
+
+        <div id="formSection">
+            <label for="studentNo">Student Number</label>
+            <input type="text" id="studentNo" placeholder="e.g. 24011234" maxlength="12"
+                   inputmode="numeric" autocomplete="off">
+
+            <button class="btn btn-primary" id="checkinBtn" onclick="doCheckin()">Check In</button>
+        </div>
+
+        <div id="successSection" style="display:none">
+            <div class="check-icon">&#10003;</div>
+            <div style="text-align:center;color:#10b981;font-size:1.1rem;font-weight:700">Attendance Recorded</div>
+            <div style="text-align:center;color:#94a3b8;font-size:0.9rem;margin-top:8px" id="successName"></div>
+        </div>
+
+        <div class="status" id="statusMsg"></div>
+
+        <div class="footer">
+            Smart Attendance v8.4<br>
+            &copy; cwk
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const courseId = params.get('course') || '';
+        const token = params.get('token') || '';
+        const serverUrl = window.location.origin;
+
+        // Display course name
+        document.getElementById('courseName').textContent = courseId || 'Unknown Course';
+
+        // Restore saved student number
+        const savedNo = localStorage.getItem('checkin_student_no');
+        if (savedNo) document.getElementById('studentNo').value = savedNo;
+
+        function setStatus(msg, type) {
+            const el = document.getElementById('statusMsg');
+            el.textContent = msg;
+            el.className = 'status status-' + type;
+        }
+
+        async function doCheckin() {
+            const studentNo = document.getElementById('studentNo').value.trim();
+            if (!studentNo || studentNo.length < 4) {
+                setStatus('Enter a valid student number', 'error');
+                return;
+            }
+            if (!token) {
+                setStatus('Invalid session — scan QR code again', 'error');
+                return;
+            }
+
+            // Save student number for next time
+            localStorage.setItem('checkin_student_no', studentNo);
+
+            const btn = document.getElementById('checkinBtn');
+            btn.className = 'btn btn-disabled';
+            btn.textContent = 'Sending...';
+            setStatus('Submitting attendance...', 'sending');
+
+            try {
+                const response = await fetch(serverUrl + '/api/checkin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        studentNo: studentNo,
+                        course: courseId,
+                        token: token,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('formSection').style.display = 'none';
+                    document.getElementById('successSection').style.display = 'block';
+                    document.getElementById('successName').textContent =
+                        data.name ? `${data.name} — ${courseId}` : `Student ${studentNo}`;
+                    setStatus('', 'success');
+                } else {
+                    const err = await response.text();
+                    setStatus(err || 'Check-in failed', 'error');
+                    btn.className = 'btn btn-primary';
+                    btn.textContent = 'Check In';
+                }
+            } catch (e) {
+                setStatus('Cannot connect to server — are you on the right WiFi?', 'error');
+                btn.className = 'btn btn-primary';
+                btn.textContent = 'Check In';
+            }
+        }
+
+        // Submit on Enter key
+        document.getElementById('studentNo').addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') doCheckin();
+        });
+    </script>
+</body>
+</html>

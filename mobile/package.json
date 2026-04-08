@@ -1,0 +1,18 @@
+{
+  "name": "smart-attendance",
+  "version": "8.4.0",
+  "description": "NFC/QR/BLE Smart Student Attendance App",
+  "main": "index.js",
+  "scripts": {
+    "build": "cp ../index.html www/index.html && cp ../sw.js www/sw.js && cp ../manifest.json www/manifest.json && cp ../icon-192.png www/icon-192.png && cp ../icon-512.png www/icon-512.png",
+    "cap:sync": "npx cap sync",
+    "cap:open": "npx cap open android",
+    "cap:build": "npm run build && npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/android": "^6.0.0",
+    "@capacitor-community/bluetooth-le": "^6.0.0"
+  }
+}

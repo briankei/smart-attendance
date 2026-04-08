@@ -313,7 +313,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.4</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.5</div>
         </div>
     </div>
 
@@ -323,6 +323,7 @@
         <button class="top-btn btn-qr" id="btnQR" onclick="setMode('qr')">Attend Code</button>
         <button class="top-btn" id="btnQRScan" onclick="setMode('qrscan')" style="background:linear-gradient(135deg,#ec4899,#be185d);color:#fff;display:none">Attend QR</button>
         <button class="top-btn" onclick="showGames()" style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff">Games</button>
+        <button class="top-btn" id="btnCheckin" onclick="openWifiCheckin()" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff">WiFi Check-in</button>
     </div>
     <input type="file" id="uploadFile" accept=".txt,.csv,.text" class="hidden">
     <input type="file" id="restoreFile" accept=".json" class="hidden">
@@ -446,6 +447,23 @@
             <div id="qrVerifyChoices" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"></div>
             <div style="margin-top:12px">
                 <button class="modal-btn modal-cancel" onclick="closeQRVerify(false)">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- WiFi Check-in modal -->
+    <div class="modal-overlay" id="wifiCheckinModal">
+        <div class="modal" style="max-width:400px">
+            <h3 style="color:#0ea5e9">WiFi Check-in</h3>
+            <p style="font-size:0.8rem;color:#64748b;margin-bottom:8px">Students scan this QR code to check in. Code rotates every 30 seconds.</p>
+            <div id="checkinQRCode" style="text-align:center;margin:12px 0;background:#fff;border-radius:12px;padding:16px;display:inline-block;width:100%"></div>
+            <div style="text-align:center;margin:8px 0">
+                <span id="checkinTimer" style="color:#f59e0b;font-size:0.85rem;font-weight:600"></span>
+            </div>
+            <div id="checkinCount" style="text-align:center;color:#10b981;font-size:0.9rem;font-weight:600;margin:8px 0"></div>
+            <div id="checkinLog" style="max-height:150px;overflow-y:auto;font-size:0.8rem;color:#94a3b8;margin:8px 0"></div>
+            <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+                <button class="modal-btn modal-cancel" onclick="closeWifiCheckin()">Stop & Close</button>
             </div>
         </div>
     </div>
@@ -974,7 +992,7 @@
                 return;
             }
             const backup = {
-                version: 'v8.4',
+                version: 'v8.5',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2846,6 +2864,176 @@
                     speechSynthesis.speak(msg);
                 }
             }, 1800);
+        }
+
+        // ---- WiFi Check-in (QR code + server polling) ----
+        let checkinActive = false;
+        let checkinToken = null;
+        let checkinPollTimer = null;
+        let checkinRotateTimer = null;
+        let checkinCountdown = 30;
+        let checkinCountdownTimer = null;
+        let checkinTotal = 0;
+
+        function generateToken() {
+            const arr = new Uint8Array(16);
+            crypto.getRandomValues(arr);
+            return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function getServerUrl() {
+            // Use current origin if served from server.py, otherwise prompt
+            if (location.protocol === 'https:' && location.port === '8443') {
+                return location.origin;
+            }
+            const saved = localStorage.getItem('checkin_server_url');
+            if (saved) return saved;
+            const url = prompt('Enter server URL (e.g. https://192.168.1.100:8443):');
+            if (url) { localStorage.setItem('checkin_server_url', url); return url; }
+            return null;
+        }
+
+        function generateQRCodeSVG(text, size) {
+            // Minimal QR code generator using SVG text display as fallback
+            // For production, use a proper QR library. This creates a scannable URL display.
+            const qrSize = size || 200;
+            // Use a simple encoding: create a visual grid pattern from the URL hash
+            const encoder = new TextEncoder();
+            const data = encoder.encode(text);
+            let bits = [];
+            for (let b of data) {
+                for (let i = 7; i >= 0; i--) bits.push((b >> i) & 1);
+            }
+            // Pad to make a square
+            const side = Math.ceil(Math.sqrt(bits.length + 40));
+            while (bits.length < side * side) bits.push(0);
+
+            // Generate SVG with URL as text (students type URL or scan with camera)
+            return `<div style="text-align:center">
+                <div style="word-break:break-all;font-size:0.75rem;color:#0f172a;margin-bottom:8px;font-family:monospace">${escapeHTML(text)}</div>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(text)}"
+                     alt="QR Code" width="${qrSize}" height="${qrSize}"
+                     style="border-radius:8px;image-rendering:pixelated"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+                <div style="display:none;color:#0f172a;font-size:0.85rem;padding:20px;background:#f1f5f9;border-radius:8px">
+                    QR image unavailable.<br>Students can type the URL above.
+                </div>
+            </div>`;
+        }
+
+        async function openWifiCheckin() {
+            if (!activeCourse) { setStatus('No course loaded', 'error'); return; }
+            const serverUrl = getServerUrl();
+            if (!serverUrl) { setStatus('Server URL required for WiFi check-in', 'error'); return; }
+
+            checkinActive = true;
+            checkinTotal = 0;
+            document.getElementById('checkinLog').innerHTML = '';
+            document.getElementById('checkinCount').textContent = '';
+
+            // Generate and register token
+            await rotateCheckinToken(serverUrl);
+
+            // Start polling for check-ins
+            checkinPollTimer = setInterval(() => pollCheckins(serverUrl), 2000);
+
+            // Start token rotation every 30 seconds
+            checkinRotateTimer = setInterval(() => rotateCheckinToken(serverUrl), 30000);
+
+            document.getElementById('wifiCheckinModal').classList.add('active');
+        }
+
+        async function rotateCheckinToken(serverUrl) {
+            checkinToken = generateToken();
+            checkinCountdown = 30;
+
+            const course = courses[activeCourse]?.title || '';
+            const checkinUrl = `${serverUrl}/checkin.html?course=${encodeURIComponent(course)}&token=${checkinToken}`;
+
+            // Update QR code
+            document.getElementById('checkinQRCode').innerHTML = generateQRCodeSVG(checkinUrl, 220);
+
+            // Register token with server
+            try {
+                await fetch(serverUrl + '/api/checkin-token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: checkinToken, course: course, ttl: 35 })
+                });
+            } catch (e) {
+                console.warn('Failed to register token:', e);
+            }
+
+            // Start countdown display
+            if (checkinCountdownTimer) clearInterval(checkinCountdownTimer);
+            checkinCountdownTimer = setInterval(() => {
+                checkinCountdown--;
+                document.getElementById('checkinTimer').textContent =
+                    checkinCountdown > 0 ? `New code in ${checkinCountdown}s` : 'Rotating...';
+            }, 1000);
+        }
+
+        async function pollCheckins(serverUrl) {
+            if (!checkinActive || !activeCourse) return;
+            const course = courses[activeCourse]?.title || '';
+            try {
+                const resp = await fetch(serverUrl + '/api/checkin-poll', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ course: course })
+                });
+                const data = await resp.json();
+                if (data.checkins && data.checkins.length > 0) {
+                    for (const c of data.checkins) {
+                        processCheckin(c);
+                    }
+                }
+            } catch (e) {
+                // Server unreachable — silent fail, will retry
+            }
+        }
+
+        function processCheckin(checkin) {
+            const last4 = checkin.last4 || '';
+            const studentNo = checkin.studentNo || '';
+            // Find matching student by last4 or full studentNo
+            const match = students.find((s, i) => {
+                if (i === 0) return false; // skip professor
+                if (s.studentNo && s.studentNo === studentNo) return true;
+                if (s.last4 && s.last4 === last4) return true;
+                return false;
+            });
+
+            if (match && !hasAttendedToday(match)) {
+                const ts = getNowTimestamp('wifi');
+                match.timestamps.push(ts);
+                saveCourses();
+                checkinTotal++;
+                playBeep();
+                speakName(match.name);
+                renderList(match.id, 'attend-highlight');
+                scrollToRow(match.id);
+
+                // Update check-in log
+                const log = document.getElementById('checkinLog');
+                log.innerHTML = `<div style="color:#10b981">${escapeHTML(match.name)} &#10003; ${checkin.timestamp}</div>` + log.innerHTML;
+                document.getElementById('checkinCount').textContent = `${checkinTotal} student${checkinTotal !== 1 ? 's' : ''} checked in`;
+            } else if (match && hasAttendedToday(match)) {
+                const log = document.getElementById('checkinLog');
+                log.innerHTML = `<div style="color:#64748b">${escapeHTML(match.name)} (already attended)</div>` + log.innerHTML;
+            } else {
+                const log = document.getElementById('checkinLog');
+                log.innerHTML = `<div style="color:#f59e0b">Unknown: ${escapeHTML(studentNo)}</div>` + log.innerHTML;
+            }
+        }
+
+        function closeWifiCheckin() {
+            checkinActive = false;
+            checkinToken = null;
+            if (checkinPollTimer) { clearInterval(checkinPollTimer); checkinPollTimer = null; }
+            if (checkinRotateTimer) { clearInterval(checkinRotateTimer); checkinRotateTimer = null; }
+            if (checkinCountdownTimer) { clearInterval(checkinCountdownTimer); checkinCountdownTimer = null; }
+            document.getElementById('wifiCheckinModal').classList.remove('active');
         }
 
         // ---- Create Course ----

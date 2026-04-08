@@ -21,7 +21,11 @@ if not CLEAR_PASSWORD:
 lock = threading.Lock()
 
 # Only serve these files via HTTP
-ALLOWED_FILES = {'/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png', '/sw.js'}
+ALLOWED_FILES = {'/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png', '/sw.js', '/checkin.html', '/ble-attendance.js'}
+
+# Session tokens for WiFi check-in (rotated by professor's app)
+checkin_tokens = {}  # {token: {course, expires}}
+checkin_queue = []   # [{studentNo, course, token, timestamp, name}]
 
 
 def load_student_names():
@@ -93,6 +97,12 @@ class NFCHandler(SimpleHTTPRequestHandler):
             self._handle_clear()
         elif parsed.path == '/api/manual-attend':
             self._handle_manual_attend()
+        elif parsed.path == '/api/checkin':
+            self._handle_checkin()
+        elif parsed.path == '/api/checkin-token':
+            self._handle_checkin_token()
+        elif parsed.path == '/api/checkin-poll':
+            self._handle_checkin_poll()
         else:
             self._send_json(404, {'error': 'Not found'})
 
@@ -224,6 +234,72 @@ class NFCHandler(SimpleHTTPRequestHandler):
             save_data(names, data)
 
         self._send_json(200, {'ok': True})
+
+    def _handle_checkin_token(self):
+        """Professor sets a session token for student check-in."""
+        body = self._read_body()
+        token = body.get('token', '')
+        course = body.get('course', '')
+        ttl = body.get('ttl', 60)  # seconds
+        if not token or not course:
+            self._send_json(400, {'error': 'Missing token or course'})
+            return
+        with lock:
+            expires = datetime.now().timestamp() + ttl
+            checkin_tokens[token] = {'course': course, 'expires': expires}
+            # Clean expired tokens
+            now = datetime.now().timestamp()
+            expired = [k for k, v in checkin_tokens.items() if v['expires'] < now]
+            for k in expired:
+                del checkin_tokens[k]
+        self._send_json(200, {'ok': True})
+
+    def _handle_checkin(self):
+        """Student submits attendance via WiFi check-in."""
+        body = self._read_body()
+        student_no = body.get('studentNo', '').strip()
+        course = body.get('course', '').strip()
+        token = body.get('token', '').strip()
+        if not student_no or not token:
+            self._send_json(400, {'error': 'Missing student number or token'})
+            return
+        with lock:
+            # Validate token
+            tok_data = checkin_tokens.get(token)
+            if not tok_data:
+                self._send_json(403, 'Invalid or expired session — scan QR code again')
+                return
+            if tok_data['expires'] < datetime.now().timestamp():
+                del checkin_tokens[token]
+                self._send_json(403, 'Session expired — scan QR code again')
+                return
+            # Find student by last 4 digits or full number
+            last4 = student_no[-4:] if len(student_no) >= 4 else student_no
+            names, data = load_data()
+            found_name = None
+            for name in names:
+                # Match by student number not available in CSV, match by last4 in queue
+                found_name = None  # will be resolved by professor's app
+            # Add to check-in queue for professor to process
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            checkin_queue.append({
+                'studentNo': student_no,
+                'last4': last4,
+                'course': course,
+                'token': token,
+                'timestamp': now
+            })
+        self._send_json(200, {'ok': True, 'name': f'Student {student_no}', 'timestamp': now})
+
+    def _handle_checkin_poll(self):
+        """Professor polls for new student check-ins."""
+        body = self._read_body()
+        course = body.get('course', '')
+        with lock:
+            # Return and clear pending check-ins for this course
+            pending = [c for c in checkin_queue if c['course'] == course]
+            checkin_queue[:] = [c for c in checkin_queue if c['course'] != course]
+        self._send_json(200, {'checkins': pending})
 
     def log_message(self, format, *args):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}")
