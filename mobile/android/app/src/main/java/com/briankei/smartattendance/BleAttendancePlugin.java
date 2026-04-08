@@ -14,9 +14,12 @@ import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.ParcelUuid;
 import android.util.Log;
+
+import androidx.core.app.ActivityCompat;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -26,6 +29,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.UUID;
 
 @CapacitorPlugin(
@@ -40,8 +44,8 @@ import java.util.UUID;
 public class BleAttendancePlugin extends Plugin {
 
     private static final String TAG = "BleAttendance";
+    private static final int PERMISSION_REQUEST_CODE = 9001;
 
-    // Must match the student check-in page
     public static final UUID SERVICE_UUID = UUID.fromString("12345678-1234-1234-1234-123456789abc");
     public static final UUID CHAR_WRITE_UUID = UUID.fromString("12345678-1234-1234-1234-123456789abd");
     public static final UUID CHAR_READ_UUID = UUID.fromString("12345678-1234-1234-1234-123456789abe");
@@ -52,47 +56,115 @@ public class BleAttendancePlugin extends Plugin {
     private BluetoothGattServer gattServer;
     private boolean isAdvertising = false;
     private String courseInfo = "";
+    private PluginCall pendingCall = null;
 
     @PluginMethod
     public void startAdvertising(PluginCall call) {
-        String course = call.getString("course", "SmartAttendance");
-        courseInfo = course;
-
-        bluetoothManager = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
-        bluetoothAdapter = bluetoothManager.getAdapter();
-
-        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            call.reject("Bluetooth is not enabled");
-            return;
-        }
-
-        advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
-        if (advertiser == null) {
-            call.reject("BLE advertising not supported on this device");
-            return;
-        }
-
-        // Start GATT server first
-        startGattServer();
-
-        // Configure advertising
-        AdvertiseSettings settings = new AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setConnectable(true)
-            .setTimeout(0)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-            .build();
-
-        AdvertiseData data = new AdvertiseData.Builder()
-            .setIncludeDeviceName(true)
-            .addServiceUuid(new ParcelUuid(SERVICE_UUID))
-            .build();
-
-        AdvertiseData scanResponse = new AdvertiseData.Builder()
-            .setIncludeDeviceName(true)
-            .build();
-
         try {
+            // Check and request permissions first
+            if (!hasBlePermissions()) {
+                pendingCall = call;
+                requestPermissions();
+                return;
+            }
+
+            doStartAdvertising(call);
+        } catch (Exception e) {
+            Log.e(TAG, "startAdvertising error", e);
+            call.reject("BLE error: " + e.getMessage());
+        }
+    }
+
+    private boolean hasBlePermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
+        }
+        return ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ActivityCompat.requestPermissions(getActivity(),
+                new String[]{
+                    Manifest.permission.BLUETOOTH_ADVERTISE,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                },
+                PERMISSION_REQUEST_CODE);
+        } else {
+            ActivityCompat.requestPermissions(getActivity(),
+                new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                },
+                PERMISSION_REQUEST_CODE);
+        }
+    }
+
+    @Override
+    protected void handleRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.handleRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST_CODE && pendingCall != null) {
+            boolean allGranted = true;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    allGranted = false;
+                    break;
+                }
+            }
+            if (allGranted) {
+                doStartAdvertising(pendingCall);
+            } else {
+                pendingCall.reject("Bluetooth permissions denied. Please grant permissions in Settings.");
+            }
+            pendingCall = null;
+        }
+    }
+
+    private void doStartAdvertising(PluginCall call) {
+        try {
+            String course = call.getString("course", "SmartAttendance");
+            courseInfo = course;
+
+            bluetoothManager = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
+            if (bluetoothManager == null) {
+                call.reject("Bluetooth not available on this device");
+                return;
+            }
+
+            bluetoothAdapter = bluetoothManager.getAdapter();
+            if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
+                call.reject("Bluetooth is not enabled. Please turn on Bluetooth.");
+                return;
+            }
+
+            advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+            if (advertiser == null) {
+                call.reject("BLE advertising not supported on this device");
+                return;
+            }
+
+            // Start GATT server first
+            startGattServer();
+
+            // Configure advertising
+            AdvertiseSettings settings = new AdvertiseSettings.Builder()
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                .setConnectable(true)
+                .setTimeout(0)
+                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+                .build();
+
+            AdvertiseData data = new AdvertiseData.Builder()
+                .setIncludeDeviceName(false)
+                .addServiceUuid(new ParcelUuid(SERVICE_UUID))
+                .build();
+
+            AdvertiseData scanResponse = new AdvertiseData.Builder()
+                .setIncludeDeviceName(true)
+                .build();
+
             advertiser.startAdvertising(settings, data, scanResponse, advertiseCallback);
             isAdvertising = true;
 
@@ -101,17 +173,26 @@ public class BleAttendancePlugin extends Plugin {
             ret.put("course", course);
             ret.put("serviceUuid", SERVICE_UUID.toString());
             call.resolve(ret);
+
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException", e);
+            call.reject("Bluetooth permission denied: " + e.getMessage());
         } catch (Exception e) {
-            call.reject("Failed to start advertising: " + e.getMessage());
+            Log.e(TAG, "doStartAdvertising error", e);
+            call.reject("Failed to start BLE: " + e.getMessage());
         }
     }
 
     @PluginMethod
     public void stopAdvertising(PluginCall call) {
-        stopAll();
-        JSObject ret = new JSObject();
-        ret.put("status", "stopped");
-        call.resolve(ret);
+        try {
+            stopAll();
+            JSObject ret = new JSObject();
+            ret.put("status", "stopped");
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Stop error: " + e.getMessage());
+        }
     }
 
     @PluginMethod
@@ -122,50 +203,63 @@ public class BleAttendancePlugin extends Plugin {
     }
 
     private void startGattServer() {
-        if (gattServer != null) {
-            gattServer.close();
+        try {
+            if (gattServer != null) {
+                gattServer.close();
+            }
+
+            gattServer = bluetoothManager.openGattServer(getContext(), gattServerCallback);
+            if (gattServer == null) {
+                Log.e(TAG, "Failed to open GATT server");
+                return;
+            }
+
+            BluetoothGattService service = new BluetoothGattService(
+                SERVICE_UUID,
+                BluetoothGattService.SERVICE_TYPE_PRIMARY
+            );
+
+            // Writable characteristic — students write their student number
+            BluetoothGattCharacteristic writeChar = new BluetoothGattCharacteristic(
+                CHAR_WRITE_UUID,
+                BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
+                BluetoothGattCharacteristic.PERMISSION_WRITE
+            );
+            service.addCharacteristic(writeChar);
+
+            // Readable characteristic — course info
+            BluetoothGattCharacteristic readChar = new BluetoothGattCharacteristic(
+                CHAR_READ_UUID,
+                BluetoothGattCharacteristic.PROPERTY_READ,
+                BluetoothGattCharacteristic.PERMISSION_READ
+            );
+            readChar.setValue(courseInfo.getBytes(StandardCharsets.UTF_8));
+            service.addCharacteristic(readChar);
+
+            gattServer.addService(service);
+            Log.d(TAG, "GATT server started with service: " + SERVICE_UUID);
+        } catch (SecurityException e) {
+            Log.e(TAG, "GATT server SecurityException", e);
+        } catch (Exception e) {
+            Log.e(TAG, "GATT server error", e);
         }
-
-        gattServer = bluetoothManager.openGattServer(getContext(), gattServerCallback);
-
-        // Create the attendance service
-        BluetoothGattService service = new BluetoothGattService(
-            SERVICE_UUID,
-            BluetoothGattService.SERVICE_TYPE_PRIMARY
-        );
-
-        // Writable characteristic — students write their student number here
-        BluetoothGattCharacteristic writeChar = new BluetoothGattCharacteristic(
-            CHAR_WRITE_UUID,
-            BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
-            BluetoothGattCharacteristic.PERMISSION_WRITE
-        );
-        service.addCharacteristic(writeChar);
-
-        // Readable characteristic — professor's course info for verification
-        BluetoothGattCharacteristic readChar = new BluetoothGattCharacteristic(
-            CHAR_READ_UUID,
-            BluetoothGattCharacteristic.PROPERTY_READ,
-            BluetoothGattCharacteristic.PERMISSION_READ
-        );
-        readChar.setValue(courseInfo.getBytes(StandardCharsets.UTF_8));
-        service.addCharacteristic(readChar);
-
-        gattServer.addService(service);
-        Log.d(TAG, "GATT server started with service: " + SERVICE_UUID);
     }
 
     private void stopAll() {
-        if (advertiser != null && isAdvertising) {
-            try {
+        try {
+            if (advertiser != null && isAdvertising) {
                 advertiser.stopAdvertising(advertiseCallback);
-            } catch (Exception e) {
-                Log.w(TAG, "Stop advertising error: " + e.getMessage());
             }
+        } catch (Exception e) {
+            Log.w(TAG, "Stop advertising error: " + e.getMessage());
         }
-        if (gattServer != null) {
-            gattServer.close();
-            gattServer = null;
+        try {
+            if (gattServer != null) {
+                gattServer.close();
+                gattServer = null;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Close GATT error: " + e.getMessage());
         }
         isAdvertising = false;
     }
@@ -188,17 +282,15 @@ public class BleAttendancePlugin extends Plugin {
 
         @Override
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
-            Log.d(TAG, "Connection state change: " + device.getAddress() + " state=" + newState);
-            if (newState == BluetoothGatt.STATE_CONNECTED) {
+            try {
+                String address = device != null ? device.getAddress() : "unknown";
+                Log.d(TAG, "Connection state change: " + address + " state=" + newState);
                 JSObject data = new JSObject();
-                data.put("event", "connected");
-                data.put("deviceAddress", device.getAddress());
+                data.put("event", newState == BluetoothGatt.STATE_CONNECTED ? "connected" : "disconnected");
+                data.put("deviceAddress", address);
                 notifyListeners("bleEvent", data);
-            } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-                JSObject data = new JSObject();
-                data.put("event", "disconnected");
-                data.put("deviceAddress", device.getAddress());
-                notifyListeners("bleEvent", data);
+            } catch (Exception e) {
+                Log.w(TAG, "onConnectionStateChange error", e);
             }
         }
 
@@ -209,25 +301,29 @@ public class BleAttendancePlugin extends Plugin {
             boolean preparedWrite, boolean responseNeeded,
             int offset, byte[] value
         ) {
-            if (CHAR_WRITE_UUID.equals(characteristic.getUuid())) {
-                String studentNo = new String(value, StandardCharsets.UTF_8).trim();
-                Log.d(TAG, "Received student number: " + studentNo + " from " + device.getAddress());
+            try {
+                if (CHAR_WRITE_UUID.equals(characteristic.getUuid()) && value != null) {
+                    String studentNo = new String(value, StandardCharsets.UTF_8).trim();
+                    String address = device != null ? device.getAddress() : "unknown";
+                    Log.d(TAG, "Received student number: " + studentNo + " from " + address);
 
-                // Notify the web layer
-                JSObject data = new JSObject();
-                data.put("event", "checkin");
-                data.put("studentNo", studentNo);
-                data.put("deviceAddress", device.getAddress());
-                data.put("timestamp", new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
-                notifyListeners("bleEvent", data);
+                    JSObject data = new JSObject();
+                    data.put("event", "checkin");
+                    data.put("studentNo", studentNo);
+                    data.put("deviceAddress", address);
+                    data.put("timestamp", new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
+                    notifyListeners("bleEvent", data);
 
-                if (responseNeeded) {
-                    gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, "OK".getBytes(StandardCharsets.UTF_8));
+                    if (responseNeeded && gattServer != null) {
+                        gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, "OK".getBytes(StandardCharsets.UTF_8));
+                    }
+                } else {
+                    if (responseNeeded && gattServer != null) {
+                        gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
+                    }
                 }
-            } else {
-                if (responseNeeded) {
-                    gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
-                }
+            } catch (Exception e) {
+                Log.w(TAG, "onCharacteristicWriteRequest error", e);
             }
         }
 
@@ -236,12 +332,16 @@ public class BleAttendancePlugin extends Plugin {
             BluetoothDevice device, int requestId, int offset,
             BluetoothGattCharacteristic characteristic
         ) {
-            if (CHAR_READ_UUID.equals(characteristic.getUuid())) {
-                byte[] response = courseInfo.getBytes(StandardCharsets.UTF_8);
-                gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset,
-                    offset < response.length ? java.util.Arrays.copyOfRange(response, offset, response.length) : new byte[0]);
-            } else {
-                gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
+            try {
+                if (CHAR_READ_UUID.equals(characteristic.getUuid()) && gattServer != null) {
+                    byte[] response = courseInfo.getBytes(StandardCharsets.UTF_8);
+                    byte[] slice = offset < response.length ? Arrays.copyOfRange(response, offset, response.length) : new byte[0];
+                    gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, slice);
+                } else if (gattServer != null) {
+                    gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "onCharacteristicReadRequest error", e);
             }
         }
     };

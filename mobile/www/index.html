@@ -313,7 +313,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.5</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v8.6</div>
         </div>
     </div>
 
@@ -1008,7 +1008,7 @@
                 return;
             }
             const backup = {
-                version: 'v8.5',
+                version: 'v8.6',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2915,7 +2915,8 @@
                     '<span style="color:#10b981">&#9679;</span> Broadcasting BLE — ' + escapeHTML(course);
 
                 // Generate QR code with BLE check-in URL
-                const bleUrl = `${location.origin}/ble-checkin.html?course=${encodeURIComponent(course)}&device=SmartAttendance`;
+                // Use GitHub Pages URL since BLE is direct device-to-device (no server needed)
+                const bleUrl = `https://briankei.github.io/smart-attendance/ble-checkin.html?course=${encodeURIComponent(course)}&device=SmartAttendance`;
                 document.getElementById('bleQRCode').innerHTML = generateQRCodeSVG(bleUrl, 200);
 
                 // Listen for student check-ins from native layer
