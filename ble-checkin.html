@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLE Attendance Check-In</title>
+    <title>BLE Attendance</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -12,30 +12,29 @@
             display: flex; align-items: center; justify-content: center; padding: 20px;
         }
         .card {
-            background: #1e293b; border-radius: 16px; padding: 32px; max-width: 380px;
+            background: #1e293b; border-radius: 16px; padding: 28px; max-width: 380px;
             width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
         }
-        h1 { text-align: center; font-size: 1.3rem; color: #38bdf8; margin-bottom: 6px; }
+        h1 { text-align: center; font-size: 1.3rem; color: #6366f1; margin-bottom: 4px; }
         .subtitle { text-align: center; color: #94a3b8; font-size: 0.85rem; margin-bottom: 20px; }
         label { display: block; color: #94a3b8; font-size: 0.85rem; margin-bottom: 6px; }
         input {
             width: 100%; padding: 14px; border-radius: 10px; border: 1px solid #334155;
             background: #0f172a; color: #e2e8f0; font-size: 1.1rem; text-align: center;
-            letter-spacing: 2px; margin-bottom: 16px;
+            letter-spacing: 1px; margin-bottom: 16px;
         }
-        input:focus { outline: none; border-color: #38bdf8; }
+        input:focus { outline: none; border-color: #6366f1; }
+        .btn-row { display: flex; gap: 10px; margin-bottom: 12px; }
         .btn {
-            width: 100%; padding: 16px; border: none; border-radius: 10px;
-            font-size: 1.1rem; font-weight: 700; cursor: pointer; transition: transform 0.15s;
-            margin-bottom: 8px;
+            flex: 1; padding: 16px; border: none; border-radius: 10px;
+            font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.15s;
         }
         .btn:active { transform: scale(0.97); }
-        .btn-ble { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; }
-        .btn-success { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+        .btn-register { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; }
+        .btn-checkin { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
         .btn-disabled { background: #334155; color: #64748b; cursor: not-allowed; }
         .status {
-            text-align: center; padding: 12px; border-radius: 8px; margin-top: 12px;
-            font-size: 0.85rem;
+            text-align: center; padding: 12px; border-radius: 8px; margin-top: 12px; font-size: 0.85rem;
         }
         .status-info { background: #1e1b4b; border: 1px solid #6366f1; color: #a5b4fc; }
         .status-success { background: #14532d; border: 1px solid #16a34a; color: #86efac; }
@@ -45,9 +44,6 @@
         .check-icon { font-size: 3rem; text-align: center; margin: 16px 0; }
         .footer { text-align: center; margin-top: 20px; font-size: 0.7rem; color: #475569; }
         .hidden { display: none; }
-        .step { margin-bottom: 16px; }
-        .step-num { display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: #6366f1; color: #fff; text-align: center; line-height: 24px; font-size: 0.75rem; font-weight: 700; margin-right: 8px; }
-        .step-done { background: #10b981; }
     </style>
 </head>
 <body>
@@ -55,35 +51,36 @@
         <h1>BLE Attendance</h1>
         <div class="subtitle" id="courseName">Loading...</div>
 
-        <!-- Step 1: Enter student number (first time) -->
-        <div id="step1" class="step">
-            <label><span class="step-num" id="step1num">1</span> Student Number</label>
-            <input type="text" id="studentNo" placeholder="e.g. 24011234" maxlength="12"
+        <div id="formSection">
+            <label>Student Number</label>
+            <input type="text" id="studentNo" placeholder="e.g. 24011234" maxlength="20"
                    inputmode="text" autocomplete="off">
+
+            <div class="btn-row">
+                <button class="btn btn-register" onclick="doAction('register')">Register</button>
+                <button class="btn btn-checkin" onclick="doAction('checkin')">Check In</button>
+            </div>
+            <p style="font-size:0.7rem;color:#64748b;text-align:center">
+                <strong>Register:</strong> First time — saves your device with student number.<br>
+                <strong>Check In:</strong> Already registered — quick attendance.
+            </p>
         </div>
 
-        <!-- Step 2: Connect via BLE -->
-        <div id="step2" class="step">
-            <label><span class="step-num" id="step2num">2</span> Connect to Professor's Device</label>
-            <button class="btn btn-ble" id="connectBtn" onclick="connectBLE()">Connect via Bluetooth</button>
-        </div>
-
-        <!-- Success state -->
         <div id="successSection" class="hidden">
             <div class="check-icon">&#10003;</div>
-            <div style="text-align:center;color:#10b981;font-size:1.1rem;font-weight:700">Attendance Recorded</div>
+            <div style="text-align:center;color:#10b981;font-size:1.1rem;font-weight:700" id="successTitle">Success</div>
             <div style="text-align:center;color:#94a3b8;font-size:0.9rem;margin-top:8px" id="successMsg"></div>
             <div style="text-align:center;margin-top:16px">
-                <button class="btn btn-ble" onclick="location.reload()">Check In Again</button>
+                <button class="btn btn-checkin" style="flex:none;padding:12px 32px" onclick="resetForm()">Done</button>
             </div>
         </div>
 
         <div id="statusMsg" class="status status-info">
-            Scan professor's QR code to check in via Bluetooth
+            Enter student number, then Register or Check In via Bluetooth.
         </div>
 
         <div class="footer">
-            Smart Attendance v8.5 | BLE Check-in<br>
+            Smart Attendance v9.0 | BLE Check-in<br>
             Requires Chrome on Android
         </div>
     </div>
@@ -95,22 +92,12 @@
 
         const params = new URLSearchParams(window.location.search);
         const courseId = params.get('course') || '';
-        const deviceName = params.get('device') || 'SmartAttendance';
 
-        // Display course name
         document.getElementById('courseName').textContent = courseId || 'Smart Attendance';
 
         // Restore saved student number
         const savedNo = localStorage.getItem('ble_student_no');
-        if (savedNo) {
-            document.getElementById('studentNo').value = savedNo;
-            document.getElementById('step1num').classList.add('step-done');
-        }
-
-        // Check for saved device for auto-reconnect
-        const savedDeviceId = localStorage.getItem('ble_device_id');
-        let bleDevice = null;
-        let bleServer = null;
+        if (savedNo) document.getElementById('studentNo').value = savedNo;
 
         function setStatus(msg, type) {
             const el = document.getElementById('statusMsg');
@@ -118,123 +105,85 @@
             el.className = 'status status-' + type;
         }
 
-        async function connectBLE() {
+        function resetForm() {
+            document.getElementById('formSection').classList.remove('hidden');
+            document.getElementById('successSection').classList.add('hidden');
+            setStatus('Ready for next action.', 'info');
+        }
+
+        async function doAction(action) {
             const studentNo = document.getElementById('studentNo').value.trim();
-            if (!studentNo || studentNo.length < 4) {
-                setStatus('Enter your student number first', 'error');
+
+            if (action === 'register' && (!studentNo || studentNo.length < 4)) {
+                setStatus('Enter your student number to register.', 'error');
                 return;
             }
 
-            // Save student number
-            localStorage.setItem('ble_student_no', studentNo);
-            document.getElementById('step1num').classList.add('step-done');
+            // For check-in, student number is optional if device is already registered
+            // But we still send it so professor can match
+            if (action === 'checkin' && !studentNo) {
+                // Try with saved number
+                const saved = localStorage.getItem('ble_student_no');
+                if (!saved) {
+                    setStatus('Enter your student number or register first.', 'error');
+                    return;
+                }
+            }
 
-            const btn = document.getElementById('connectBtn');
-            btn.className = 'btn btn-disabled';
-            btn.textContent = 'Scanning...';
+            const sendNo = studentNo || localStorage.getItem('ble_student_no') || '';
+            localStorage.setItem('ble_student_no', sendNo);
+
+            if (!navigator.bluetooth) {
+                setStatus('Web Bluetooth not supported. Use Chrome on Android.', 'error');
+                return;
+            }
+
             setStatus('Scanning for professor\'s device...', 'scanning');
 
             try {
-                // Check Web Bluetooth support
-                if (!navigator.bluetooth) {
-                    setStatus('Web Bluetooth not supported. Use Chrome on Android.', 'error');
-                    btn.className = 'btn btn-ble';
-                    btn.textContent = 'Connect via Bluetooth';
-                    return;
-                }
-
-                // Request BLE device (shows system picker)
-                bleDevice = await navigator.bluetooth.requestDevice({
+                const device = await navigator.bluetooth.requestDevice({
                     filters: [{ services: [BLE_SERVICE_UUID] }],
                     optionalServices: [BLE_SERVICE_UUID]
                 });
 
-                setStatus('Connecting to ' + (bleDevice.name || 'device') + '...', 'scanning');
+                setStatus('Connecting to ' + (device.name || 'device') + '...', 'scanning');
 
-                // Connect to GATT server
-                bleServer = await bleDevice.gatt.connect();
-                const service = await bleServer.getPrimaryService(BLE_SERVICE_UUID);
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(BLE_SERVICE_UUID);
 
-                // Read course info to verify
-                try {
-                    const readChar = await service.getCharacteristic(BLE_CHAR_READ_UUID);
-                    const value = await readChar.readValue();
-                    const serverCourse = new TextDecoder().decode(value);
-                    if (courseId && serverCourse && serverCourse !== courseId) {
-                        setStatus('Wrong course: ' + serverCourse + '. Expected: ' + courseId, 'error');
-                        bleServer.disconnect();
-                        btn.className = 'btn btn-ble';
-                        btn.textContent = 'Connect via Bluetooth';
-                        return;
-                    }
-                } catch (e) {
-                    // Read characteristic may not exist, continue anyway
-                }
-
-                // Write student number
+                // Send: action|studentNo (professor parses this)
                 const writeChar = await service.getCharacteristic(BLE_CHAR_WRITE_UUID);
-                const encoder = new TextEncoder();
-                await writeChar.writeValue(encoder.encode(studentNo));
+                const payload = action + '|' + sendNo;
+                await writeChar.writeValue(new TextEncoder().encode(payload));
 
-                // Save device for auto-reconnect
-                localStorage.setItem('ble_device_id', bleDevice.id || bleDevice.name);
+                // Disconnect
+                setTimeout(() => { if (server.connected) server.disconnect(); }, 500);
 
-                // Success
-                document.getElementById('step1').classList.add('hidden');
-                document.getElementById('step2').classList.add('hidden');
+                // Show success
+                document.getElementById('formSection').classList.add('hidden');
                 document.getElementById('successSection').classList.remove('hidden');
-                document.getElementById('successMsg').textContent =
-                    'Student ' + studentNo + ' — ' + (courseId || 'Attendance recorded');
-                setStatus('Sent via Bluetooth successfully', 'success');
-
-                // Disconnect after sending
-                setTimeout(() => {
-                    if (bleServer && bleServer.connected) bleServer.disconnect();
-                }, 1000);
+                if (action === 'register') {
+                    document.getElementById('successTitle').textContent = 'Registered';
+                    document.getElementById('successMsg').textContent = 'Device saved for ' + sendNo;
+                    setStatus('Registration sent via Bluetooth', 'success');
+                } else {
+                    document.getElementById('successTitle').textContent = 'Checked In';
+                    document.getElementById('successMsg').textContent = sendNo + ' — ' + courseId;
+                    setStatus('Attendance sent via Bluetooth', 'success');
+                }
 
             } catch (e) {
-                console.error('BLE error:', e);
                 if (e.name === 'NotFoundError') {
                     setStatus('No device selected. Try again.', 'error');
-                } else if (e.message && e.message.includes('User cancelled')) {
-                    setStatus('Cancelled. Tap Connect to try again.', 'info');
                 } else {
-                    setStatus('Bluetooth error: ' + e.message, 'error');
-                }
-                btn.className = 'btn btn-ble';
-                btn.textContent = 'Connect via Bluetooth';
-            }
-        }
-
-        // Auto-connect if we have saved credentials
-        async function tryAutoConnect() {
-            const studentNo = localStorage.getItem('ble_student_no');
-            if (!studentNo) return;
-
-            document.getElementById('studentNo').value = studentNo;
-            document.getElementById('step1num').classList.add('step-done');
-
-            // Check if we have a previously paired device
-            if (navigator.bluetooth && navigator.bluetooth.getDevices) {
-                try {
-                    const devices = await navigator.bluetooth.getDevices();
-                    const saved = devices.find(d => d.id === savedDeviceId || d.name === savedDeviceId);
-                    if (saved) {
-                        setStatus('Found saved device. Tap Connect to check in.', 'info');
-                        document.getElementById('connectBtn').textContent = 'Reconnect & Check In';
-                    }
-                } catch (e) {
-                    // getDevices not supported or no permission
+                    setStatus('Bluetooth error: ' + (e.message || e), 'error');
                 }
             }
         }
 
-        // Enter key submits
         document.getElementById('studentNo').addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') connectBLE();
+            if (e.key === 'Enter') doAction('checkin');
         });
-
-        tryAutoConnect();
     </script>
 </body>
 </html>

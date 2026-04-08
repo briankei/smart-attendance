@@ -314,7 +314,7 @@
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v9.0</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v9.1</div>
         </div>
     </div>
 
@@ -458,11 +458,7 @@
         <div class="modal" style="max-width:420px">
             <h3 style="color:#6366f1">BLE Attendance</h3>
             <div id="bleStatus" style="text-align:center;color:#94a3b8;font-size:0.85rem;margin-bottom:8px">Starting Bluetooth broadcast...</div>
-            <div style="display:flex;gap:8px;justify-content:center;margin:10px 0">
-                <button class="modal-btn" id="bleModeRegBtn" style="background:#f59e0b;color:#fff;flex:1" onclick="setBleMode('register')">Register</button>
-                <button class="modal-btn" id="bleModeCheckinBtn" style="background:#10b981;color:#fff;flex:1" onclick="setBleMode('checkin')">Check In</button>
-            </div>
-            <div id="bleModeDesc" style="text-align:center;font-size:0.75rem;color:#64748b;margin-bottom:8px">Register: save student's BLE device. Check In: auto-attend by saved device.</div>
+            <p style="font-size:0.75rem;color:#64748b;text-align:center;margin-bottom:8px">Students scan QR, then tap Register (first time) or Check In.</p>
             <div id="bleQRCode" onclick="shareQRCode('bleQRCode')" style="text-align:center;margin:8px 0;background:#fff;border-radius:12px;padding:16px;display:inline-block;width:100%;cursor:pointer"></div>
             <div style="text-align:center;font-size:0.65rem;color:#64748b">Tap QR code to share</div>
             <div id="bleCheckinCount" style="text-align:center;color:#10b981;font-size:0.9rem;font-weight:600;margin:8px 0"></div>
@@ -1036,7 +1032,7 @@
                 return;
             }
             const backup = {
-                version: 'v9.0',
+                version: 'v9.1',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -2502,15 +2498,25 @@
             setStatus('CSV exported', 'success');
         }
 
-        function downloadCSVFile(csv, fileName) {
-            // Use data URI for Capacitor WebView compatibility
-            const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+        async function downloadCSVFile(csv, fileName) {
+            const file = new File([csv], fileName, { type: 'text/csv' });
+            // Try native share first (works in Capacitor and mobile browsers)
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({ title: fileName, files: [file] });
+                    return;
+                } catch (e) { /* fall through */ }
+            }
+            // Fallback: blob URL download
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = dataUri;
+            a.href = url;
             a.download = fileName;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
 
         async function shareCSV() {
@@ -3035,11 +3041,20 @@
         }
 
         function processBleCheckin(data) {
-            const studentNo = data.studentNo || '';
+            const rawPayload = data.studentNo || '';
             const deviceAddress = data.deviceAddress || '';
-            const last4 = studentNo.length >= 4 ? studentNo.slice(-4) : studentNo;
             const devices = loadBleDevices();
             const log = document.getElementById('bleCheckinLog');
+
+            // Parse payload: "action|studentNo" or just "studentNo" (backward compat)
+            let action = 'checkin';
+            let studentNo = rawPayload;
+            if (rawPayload.includes('|')) {
+                const parts = rawPayload.split('|');
+                action = parts[0];
+                studentNo = parts.slice(1).join('|');
+            }
+            const last4 = studentNo.length >= 4 ? studentNo.slice(-4) : studentNo;
 
             // Find matching student by studentNo/last4
             const matchByNo = students.find((s, i) => {
@@ -3053,20 +3068,32 @@
             const registeredStudentId = devices[deviceAddress];
             const matchByDevice = registeredStudentId != null ? students[registeredStudentId] : null;
 
-            if (bleMode === 'register') {
-                // Register mode: save device address with student
+            if (action === 'register') {
+                // Student tapped Register — save BLE device address + record attendance
                 if (matchByNo) {
                     devices[deviceAddress] = matchByNo.id;
                     saveBleDevices(devices);
+                    // Also record attendance
+                    if (!hasAttendedToday(matchByNo)) {
+                        const ts = getNowTimestamp('ble|' + deviceAddress);
+                        matchByNo.timestamps.push(ts);
+                        saveCourses();
+                        bleCheckinTotal++;
+                        document.getElementById('bleCheckinCount').textContent =
+                            `${bleCheckinTotal} student${bleCheckinTotal !== 1 ? 's' : ''} checked in`;
+                        renderList(matchByNo.id, 'attend-highlight');
+                        scrollToRow(matchByNo.id);
+                    }
                     playBeep();
                     speakName(matchByNo.name);
-                    log.innerHTML = `<div style="color:#f59e0b">${escapeHTML(matchByNo.name)} registered BLE: ${escapeHTML(deviceAddress)}</div>` + log.innerHTML;
+                    log.innerHTML = `<div style="color:#f59e0b">${escapeHTML(matchByNo.name)} registered + attended &#10003; ${escapeHTML(deviceAddress)}</div>` + log.innerHTML;
                 } else {
-                    log.innerHTML = `<div style="color:#dc2626">Unknown student: ${escapeHTML(studentNo)}</div>` + log.innerHTML;
+                    // Student number not found
                     playBoo();
+                    log.innerHTML = `<div style="color:#dc2626">Unknown student: ${escapeHTML(studentNo)}</div>` + log.innerHTML;
                 }
             } else {
-                // Check-in mode: auto-attend by device or student number
+                // Student tapped Check In — match by device or student number
                 const match = matchByDevice || matchByNo;
 
                 if (match && !hasAttendedToday(match)) {
@@ -3089,7 +3116,9 @@
                 } else if (match && hasAttendedToday(match)) {
                     log.innerHTML = `<div style="color:#64748b">${escapeHTML(match.name)} (already attended)</div>` + log.innerHTML;
                 } else {
-                    log.innerHTML = `<div style="color:#f59e0b">Unknown: ${escapeHTML(studentNo)} [${escapeHTML(deviceAddress)}]</div>` + log.innerHTML;
+                    // Unknown device and unknown student number
+                    playBoo();
+                    log.innerHTML = `<div style="color:#dc2626">Unknown: ${escapeHTML(studentNo || deviceAddress)}</div>` + log.innerHTML;
                 }
             }
         }
@@ -3159,51 +3188,41 @@
             if (!svg) return;
 
             try {
-                // Convert SVG to PNG via canvas
                 const svgData = new XMLSerializer().serializeToString(svg);
-                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-                const url = URL.createObjectURL(svgBlob);
+                const canvas = document.createElement('canvas');
+                canvas.width = 600;
+                canvas.height = 600;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, 600, 600);
 
+                // Draw SVG to canvas via data URI (more compatible than blob URL)
                 const img = new Image();
+                const svgB64 = btoa(unescape(encodeURIComponent(svgData)));
+                img.src = 'data:image/svg+xml;base64,' + svgB64;
+
                 img.onload = async () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 600;
-                    canvas.height = 600;
-                    const ctx = canvas.getContext('2d');
-                    ctx.fillStyle = '#fff';
-                    ctx.fillRect(0, 0, 600, 600);
                     ctx.drawImage(img, 0, 0, 600, 600);
-                    URL.revokeObjectURL(url);
-
                     canvas.toBlob(async (blob) => {
-                        if (!blob) return;
+                        if (!blob) { setStatus('Failed to create QR image', 'error'); return; }
                         const file = new File([blob], 'attendance-qr.png', { type: 'image/png' });
-
                         if (navigator.canShare && navigator.canShare({ files: [file] })) {
                             try {
-                                await navigator.share({
-                                    title: 'Attendance QR Code',
-                                    text: 'Scan this QR code to check in',
-                                    files: [file]
-                                });
+                                await navigator.share({ title: 'Attendance QR Code', files: [file] });
                             } catch (e) {
                                 if (e.name !== 'AbortError') setStatus('Share cancelled', 'info');
                             }
                         } else {
-                            // Fallback: download the image
-                            const a = document.createElement('a');
-                            a.href = canvas.toDataURL('image/png');
-                            a.download = 'attendance-qr.png';
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            setStatus('QR code saved as image', 'success');
+                            // Fallback: open image in new tab
+                            const w = window.open('');
+                            if (w) { w.document.write('<img src="' + canvas.toDataURL('image/png') + '" style="max-width:100%">'); }
+                            setStatus('QR code opened — long press to save', 'info');
                         }
                     }, 'image/png');
                 };
-                img.src = url;
+                img.onerror = () => setStatus('Failed to render QR image', 'error');
             } catch (e) {
-                setStatus('Failed to share QR code', 'error');
+                setStatus('Failed to share QR code: ' + e.message, 'error');
             }
         }
 
