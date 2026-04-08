@@ -4,13 +4,14 @@
     <meta charset="UTF-8">
     <meta name="author" content="cwk">
     <meta name="copyright" content="Copyright 2026 cwk. All rights reserved.">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https: capacitor:; manifest-src 'self'; media-src 'self' blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: capacitor: http://localhost; script-src 'self' 'unsafe-inline' https: capacitor:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https: capacitor: http://localhost; manifest-src 'self'; media-src 'self' blob:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NFC/Code Smart Attendance PWA</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0f172a">
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <script src="/qrcode-lib.js"></script>
+    <script src="qrcode-lib.js"></script>
+    <script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -2499,15 +2500,16 @@
         }
 
         async function downloadCSVFile(csv, fileName) {
-            const file = new File([csv], fileName, { type: 'text/csv' });
-            // Try native share first (works in Capacitor and mobile browsers)
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            // Native Capacitor: use native save
+            if (isCapacitorNative()) {
                 try {
-                    await navigator.share({ title: fileName, files: [file] });
+                    const { BleAttendance } = window.Capacitor.Plugins;
+                    await BleAttendance.saveFile({ content: csv, fileName: fileName });
+                    setStatus('CSV saved to Downloads/' + fileName, 'success');
                     return;
                 } catch (e) { /* fall through */ }
             }
-            // Fallback: blob URL download
+            // Browser: blob URL download
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -2517,6 +2519,17 @@
             a.click();
             document.body.removeChild(a);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        async function nativeShareCSV(csv, fileName) {
+            if (isCapacitorNative()) {
+                try {
+                    const { BleAttendance } = window.Capacitor.Plugins;
+                    await BleAttendance.shareFile({ content: csv, fileName: fileName, mimeType: 'text/csv' });
+                    return true;
+                } catch (e) { /* fall through */ }
+            }
+            return false;
         }
 
         async function shareCSV() {
@@ -2545,8 +2558,15 @@
                 csv += '\n';
             }
             const fileName = `${c.title.replace(/\s+/g,'_')}_attendance_${new Date().toISOString().slice(0,10)}.csv`;
-            const file = new File([csv], fileName, { type: 'text/csv' });
 
+            // Try native share first (Capacitor)
+            if (await nativeShareCSV(csv, fileName)) {
+                setStatus('CSV shared', 'success');
+                return;
+            }
+
+            // Browser: Web Share API
+            const file = new File([csv], fileName, { type: 'text/csv' });
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 try {
                     await navigator.share({
@@ -3185,7 +3205,7 @@
         async function shareQRCode(containerId) {
             const container = document.getElementById(containerId);
             const svg = container.querySelector('svg');
-            if (!svg) return;
+            if (!svg) { setStatus('No QR code to share', 'error'); return; }
 
             try {
                 const svgData = new XMLSerializer().serializeToString(svg);
@@ -3196,13 +3216,25 @@
                 ctx.fillStyle = '#fff';
                 ctx.fillRect(0, 0, 600, 600);
 
-                // Draw SVG to canvas via data URI (more compatible than blob URL)
                 const img = new Image();
                 const svgB64 = btoa(unescape(encodeURIComponent(svgData)));
                 img.src = 'data:image/svg+xml;base64,' + svgB64;
 
                 img.onload = async () => {
                     ctx.drawImage(img, 0, 0, 600, 600);
+
+                    // Native Capacitor: use native share
+                    if (isCapacitorNative()) {
+                        try {
+                            const dataUrl = canvas.toDataURL('image/png');
+                            const base64 = dataUrl.split(',')[1];
+                            const { BleAttendance } = window.Capacitor.Plugins;
+                            await BleAttendance.shareImage({ base64: base64, fileName: 'attendance-qr.png' });
+                            return;
+                        } catch (e) { /* fall through */ }
+                    }
+
+                    // Browser: Web Share API
                     canvas.toBlob(async (blob) => {
                         if (!blob) { setStatus('Failed to create QR image', 'error'); return; }
                         const file = new File([blob], 'attendance-qr.png', { type: 'image/png' });
@@ -3213,10 +3245,7 @@
                                 if (e.name !== 'AbortError') setStatus('Share cancelled', 'info');
                             }
                         } else {
-                            // Fallback: open image in new tab
-                            const w = window.open('');
-                            if (w) { w.document.write('<img src="' + canvas.toDataURL('image/png') + '" style="max-width:100%">'); }
-                            setStatus('QR code opened — long press to save', 'info');
+                            setStatus('Share not supported in this browser', 'error');
                         }
                     }, 'image/png');
                 };

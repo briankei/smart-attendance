@@ -14,11 +14,16 @@ import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.os.ParcelUuid;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
+
+import androidx.core.content.FileProvider;
 
 import androidx.core.app.ActivityCompat;
 
@@ -235,6 +240,90 @@ public class BleAttendancePlugin extends Plugin {
             Log.w(TAG, "TTS not ready");
         }
         call.resolve();
+    }
+
+    @PluginMethod
+    public void shareFile(PluginCall call) {
+        String content = call.getString("content", "");
+        String fileName = call.getString("fileName", "file.csv");
+        String mimeType = call.getString("mimeType", "text/csv");
+
+        try {
+            // Write to cache dir
+            java.io.File cacheDir = new java.io.File(getContext().getCacheDir(), "shared");
+            cacheDir.mkdirs();
+            java.io.File file = new java.io.File(cacheDir, fileName);
+            java.io.FileWriter writer = new java.io.FileWriter(file);
+            writer.write(content);
+            writer.close();
+
+            Uri uri = FileProvider.getUriForFile(getContext(),
+                getContext().getPackageName() + ".fileprovider", file);
+
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType(mimeType);
+            shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+            shareIntent.putExtra(Intent.EXTRA_SUBJECT, fileName);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            getActivity().startActivity(Intent.createChooser(shareIntent, "Share " + fileName));
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "shareFile error", e);
+            call.reject("Share failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void saveFile(PluginCall call) {
+        String content = call.getString("content", "");
+        String fileName = call.getString("fileName", "file.csv");
+
+        try {
+            java.io.File dlDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            java.io.File file = new java.io.File(dlDir, fileName);
+            java.io.FileWriter writer = new java.io.FileWriter(file);
+            writer.write(content);
+            writer.close();
+
+            JSObject ret = new JSObject();
+            ret.put("path", file.getAbsolutePath());
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "saveFile error", e);
+            call.reject("Save failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void shareImage(PluginCall call) {
+        String base64 = call.getString("base64", "");
+        String fileName = call.getString("fileName", "qrcode.png");
+
+        try {
+            byte[] imageBytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+
+            java.io.File cacheDir = new java.io.File(getContext().getCacheDir(), "shared");
+            cacheDir.mkdirs();
+            java.io.File file = new java.io.File(cacheDir, fileName);
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(file);
+            fos.write(imageBytes);
+            fos.close();
+
+            Uri uri = FileProvider.getUriForFile(getContext(),
+                getContext().getPackageName() + ".fileprovider", file);
+
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("image/png");
+            shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            getActivity().startActivity(Intent.createChooser(shareIntent, "Share QR Code"));
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "shareImage error", e);
+            call.reject("Share failed: " + e.getMessage());
+        }
     }
 
     @PluginMethod
