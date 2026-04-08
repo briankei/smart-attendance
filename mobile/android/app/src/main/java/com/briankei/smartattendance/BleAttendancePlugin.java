@@ -28,8 +28,11 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 
+import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.UUID;
 
 @CapacitorPlugin(
@@ -172,6 +175,7 @@ public class BleAttendancePlugin extends Plugin {
             ret.put("status", "advertising");
             ret.put("course", course);
             ret.put("serviceUuid", SERVICE_UUID.toString());
+            ret.put("ipAddress", getLocalIPAddress());
             call.resolve(ret);
 
         } catch (SecurityException e) {
@@ -200,6 +204,33 @@ public class BleAttendancePlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("advertising", isAdvertising);
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void getDeviceIP(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("ip", getLocalIPAddress());
+        call.resolve(ret);
+    }
+
+    private String getLocalIPAddress() {
+        try {
+            for (NetworkInterface intf : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                // Prefer wlan or hotspot interfaces
+                String name = intf.getName().toLowerCase();
+                if (!intf.isUp() || intf.isLoopback()) continue;
+                for (InetAddress addr : Collections.list(intf.getInetAddresses())) {
+                    if (addr.isLoopbackAddress()) continue;
+                    String ip = addr.getHostAddress();
+                    if (ip != null && ip.indexOf(':') < 0) { // IPv4 only
+                        return ip;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "getLocalIPAddress error", e);
+        }
+        return "0.0.0.0";
     }
 
     private void startGattServer() {
