@@ -5340,10 +5340,19 @@ var qrcode = function() {
                 document.getElementById('bleStatus').innerHTML =
                     '<span style="color:#10b981">&#9679;</span> Broadcasting BLE — ' + escapeHTML(course);
 
-                // Listen for student check-ins from native layer
+                // Listen for BLE events from native layer
                 BleAttendance.addListener('bleEvent', (data) => {
                     if (data.event === 'checkin') {
                         processBleCheckin(data);
+                    } else if (data.event === 'advertiseOk') {
+                        document.getElementById('bleStatus').innerHTML =
+                            '<span style="color:#10b981">&#9679;</span> BLE broadcasting — students can now connect';
+                    } else if (data.event === 'advertiseFail') {
+                        document.getElementById('bleStatus').innerHTML =
+                            '<span style="color:#dc2626">&#9679;</span> BLE advertising failed: ' + escapeHTML(data.reason || 'unknown');
+                    } else if (data.event === 'connected') {
+                        document.getElementById('bleStatus').innerHTML =
+                            '<span style="color:#38bdf8">&#9679;</span> Student connecting...';
                     }
                 });
 

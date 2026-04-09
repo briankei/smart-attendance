@@ -190,14 +190,18 @@ public class BleAttendancePlugin extends Plugin {
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .build();
 
+            // Main advertise data: service UUID only (must fit in 31 bytes)
             AdvertiseData data = new AdvertiseData.Builder()
-                .setIncludeDeviceName(true)
+                .setIncludeDeviceName(false)
                 .addServiceUuid(new ParcelUuid(SERVICE_UUID))
                 .build();
 
+            // Scan response: device name (sent when scanner requests more info)
             AdvertiseData scanResponse = new AdvertiseData.Builder()
                 .setIncludeDeviceName(true)
                 .build();
+
+            Log.d(TAG, "Starting BLE advertising with name: " + bluetoothAdapter.getName());
 
             advertiser.startAdvertising(settings, data, scanResponse, advertiseCallback);
             isAdvertising = true;
@@ -435,12 +439,28 @@ public class BleAttendancePlugin extends Plugin {
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             Log.d(TAG, "BLE advertising started successfully");
             isAdvertising = true;
+            JSObject data = new JSObject();
+            data.put("event", "advertiseOk");
+            notifyListeners("bleEvent", data);
         }
 
         @Override
         public void onStartFailure(int errorCode) {
-            Log.e(TAG, "BLE advertising failed with error: " + errorCode);
+            String reason;
+            switch (errorCode) {
+                case ADVERTISE_FAILED_DATA_TOO_LARGE: reason = "Data too large"; break;
+                case ADVERTISE_FAILED_TOO_MANY_ADVERTISERS: reason = "Too many advertisers"; break;
+                case ADVERTISE_FAILED_ALREADY_STARTED: reason = "Already started"; break;
+                case ADVERTISE_FAILED_INTERNAL_ERROR: reason = "Internal error"; break;
+                case ADVERTISE_FAILED_FEATURE_UNSUPPORTED: reason = "Feature unsupported"; break;
+                default: reason = "Error code " + errorCode; break;
+            }
+            Log.e(TAG, "BLE advertising failed: " + reason);
             isAdvertising = false;
+            JSObject data = new JSObject();
+            data.put("event", "advertiseFail");
+            data.put("reason", reason);
+            notifyListeners("bleEvent", data);
         }
     };
 
