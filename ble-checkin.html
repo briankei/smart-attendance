@@ -139,13 +139,30 @@
                 return;
             }
 
-            setStatus('Scanning for professor\'s device...', 'scanning');
+            setStatus('Connecting...', 'scanning');
 
             try {
-                const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'SmartAttendance' }],
-                    optionalServices: [BLE_SERVICE_UUID]
-                });
+                let device = null;
+
+                // Try auto-reconnect to previously paired device first
+                if (navigator.bluetooth.getDevices) {
+                    try {
+                        const pairedDevices = await navigator.bluetooth.getDevices();
+                        device = pairedDevices.find(d => d.name && d.name.startsWith('SmartAttendance'));
+                        if (device) {
+                            setStatus('Reconnecting to ' + device.name + '...', 'scanning');
+                        }
+                    } catch (e) { /* getDevices not supported, fall through */ }
+                }
+
+                // If no paired device found, show device picker
+                if (!device) {
+                    setStatus('Scanning for professor\'s device...', 'scanning');
+                    device = await navigator.bluetooth.requestDevice({
+                        filters: [{ namePrefix: 'SmartAttendance' }],
+                        optionalServices: [BLE_SERVICE_UUID]
+                    });
+                }
 
                 setStatus('Connecting to ' + (device.name || 'device') + '...', 'scanning');
 
