@@ -156,20 +156,49 @@
                 const payload = action + '|' + sendNo;
                 await writeChar.writeValue(new TextEncoder().encode(payload));
 
+                setStatus('Sent — waiting for response...', 'scanning');
+
+                // Wait briefly for professor to process, then read response
+                await new Promise(r => setTimeout(r, 1500));
+
+                let response = '';
+                try {
+                    const readChar = await service.getCharacteristic(BLE_CHAR_READ_UUID);
+                    const value = await readChar.readValue();
+                    response = new TextDecoder().decode(value);
+                } catch (e) { /* read may fail, continue */ }
+
                 // Disconnect
                 setTimeout(() => { if (server.connected) server.disconnect(); }, 500);
 
-                // Show success
+                // Parse response: "OK|Name|Message" or "ERROR|Message"
+                const parts = response.split('|');
+                const status = parts[0] || '';
+                const respName = parts[1] || '';
+                const respMsg = parts[2] || '';
+
                 document.getElementById('formSection').classList.add('hidden');
                 document.getElementById('successSection').classList.remove('hidden');
-                if (action === 'register') {
-                    document.getElementById('successTitle').textContent = 'Registered';
-                    document.getElementById('successMsg').textContent = 'Device saved for ' + sendNo;
-                    setStatus('Registration sent via Bluetooth', 'success');
+
+                if (status === 'ERROR') {
+                    document.getElementById('successSection').querySelector('.check-icon').textContent = '\u2717';
+                    document.getElementById('successTitle').textContent = 'Failed';
+                    document.getElementById('successTitle').style.color = '#dc2626';
+                    document.getElementById('successMsg').textContent = respName || 'Unknown error';
+                    setStatus(respName || 'Check-in failed', 'error');
+                } else if (status === 'OK') {
+                    document.getElementById('successSection').querySelector('.check-icon').textContent = '\u2713';
+                    document.getElementById('successTitle').style.color = '#10b981';
+                    document.getElementById('successTitle').textContent = respName || 'Success';
+                    document.getElementById('successMsg').textContent = respMsg || (action === 'register' ? 'Registered' : 'Attended');
+                    setStatus(respMsg || 'Success', 'success');
                 } else {
-                    document.getElementById('successTitle').textContent = 'Checked In';
-                    document.getElementById('successMsg').textContent = sendNo + ' — ' + courseId;
-                    setStatus('Attendance sent via Bluetooth', 'success');
+                    // No response or unknown format — assume success (backward compat)
+                    document.getElementById('successSection').querySelector('.check-icon').textContent = '\u2713';
+                    document.getElementById('successTitle').style.color = '#10b981';
+                    document.getElementById('successTitle').textContent = action === 'register' ? 'Registered' : 'Checked In';
+                    document.getElementById('successMsg').textContent = sendNo;
+                    setStatus('Sent via Bluetooth', 'success');
                 }
 
             } catch (e) {

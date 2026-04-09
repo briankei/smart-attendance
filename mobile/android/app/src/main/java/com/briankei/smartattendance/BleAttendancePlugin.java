@@ -68,6 +68,7 @@ public class BleAttendancePlugin extends Plugin {
     private PluginCall pendingCall = null;
     private TextToSpeech tts;
     private boolean ttsReady = false;
+    private volatile String lastBleResponse = "";
 
     @Override
     public void load() {
@@ -327,6 +328,13 @@ public class BleAttendancePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setResponse(PluginCall call) {
+        lastBleResponse = call.getString("response", "");
+        Log.d(TAG, "BLE response set: " + lastBleResponse);
+        call.resolve();
+    }
+
+    @PluginMethod
     public void getDeviceIP(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("ip", getLocalIPAddress());
@@ -485,7 +493,9 @@ public class BleAttendancePlugin extends Plugin {
         ) {
             try {
                 if (CHAR_READ_UUID.equals(characteristic.getUuid()) && gattServer != null) {
-                    byte[] response = courseInfo.getBytes(StandardCharsets.UTF_8);
+                    // Return last response (set by JS after processing check-in)
+                    String responseStr = lastBleResponse.isEmpty() ? courseInfo : lastBleResponse;
+                    byte[] response = responseStr.getBytes(StandardCharsets.UTF_8);
                     byte[] slice = offset < response.length ? Arrays.copyOfRange(response, offset, response.length) : new byte[0];
                     gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, slice);
                 } else if (gattServer != null) {
