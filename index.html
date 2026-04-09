@@ -5353,6 +5353,15 @@ var qrcode = function() {
             }
         }
 
+        function setBleResponse(response) {
+            if (isCapacitorNative()) {
+                try {
+                    const { BleAttendance } = window.Capacitor.Plugins;
+                    BleAttendance.setResponse({ response: response });
+                } catch (e) { /* ignore */ }
+            }
+        }
+
         function processBleCheckin(data) {
             const rawPayload = data.studentNo || '';
             const deviceAddress = data.deviceAddress || '';
@@ -5382,11 +5391,9 @@ var qrcode = function() {
             const matchByDevice = registeredStudentId != null ? students[registeredStudentId] : null;
 
             if (action === 'register') {
-                // Student tapped Register — save BLE device address + record attendance
                 if (matchByNo) {
                     devices[deviceAddress] = matchByNo.id;
                     saveBleDevices(devices);
-                    // Also record attendance
                     if (!hasAttendedToday(matchByNo)) {
                         const ts = getNowTimestamp('ble|' + deviceAddress);
                         matchByNo.timestamps.push(ts);
@@ -5399,18 +5406,17 @@ var qrcode = function() {
                     }
                     playBeep();
                     speakName(matchByNo.name);
+                    setBleResponse('OK|' + matchByNo.name + '|Registered and attended');
                     log.innerHTML = `<div style="color:#f59e0b">${escapeHTML(matchByNo.name)} registered + attended &#10003; ${escapeHTML(deviceAddress)}</div>` + log.innerHTML;
                 } else {
-                    // Student number not found
                     playBoo();
+                    setBleResponse('ERROR|Student number ' + studentNo + ' not found');
                     log.innerHTML = `<div style="color:#dc2626">Unknown student: ${escapeHTML(studentNo)}</div>` + log.innerHTML;
                 }
             } else {
-                // Student tapped Check In — match by device or student number
                 const match = matchByDevice || matchByNo;
 
                 if (match && !hasAttendedToday(match)) {
-                    // Auto-register device if not yet registered
                     if (!registeredStudentId && deviceAddress) {
                         devices[deviceAddress] = match.id;
                         saveBleDevices(devices);
@@ -5421,16 +5427,18 @@ var qrcode = function() {
                     bleCheckinTotal++;
                     playBeep();
                     speakName(match.name);
+                    setBleResponse('OK|' + match.name + '|Attendance recorded');
                     renderList(match.id, 'attend-highlight');
                     scrollToRow(match.id);
                     log.innerHTML = `<div style="color:#10b981">${escapeHTML(match.name)} &#10003; ${escapeHTML(deviceAddress)}</div>` + log.innerHTML;
                     document.getElementById('bleCheckinCount').textContent =
                         `${bleCheckinTotal} student${bleCheckinTotal !== 1 ? 's' : ''} checked in`;
                 } else if (match && hasAttendedToday(match)) {
+                    setBleResponse('OK|' + match.name + '|Already attended today');
                     log.innerHTML = `<div style="color:#64748b">${escapeHTML(match.name)} (already attended)</div>` + log.innerHTML;
                 } else {
-                    // Unknown device and unknown student number
                     playBoo();
+                    setBleResponse('ERROR|Student number ' + studentNo + ' not found');
                     log.innerHTML = `<div style="color:#dc2626">Unknown: ${escapeHTML(studentNo || deviceAddress)}</div>` + log.innerHTML;
                 }
             }
