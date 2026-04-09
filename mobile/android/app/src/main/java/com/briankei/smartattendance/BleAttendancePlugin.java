@@ -172,6 +172,13 @@ public class BleAttendancePlugin extends Plugin {
                 return;
             }
 
+            // Set a recognizable device name for students to find
+            try {
+                bluetoothAdapter.setName("SmartAttendance");
+            } catch (Exception e) {
+                Log.w(TAG, "Could not set BLE name", e);
+            }
+
             // Start GATT server first
             startGattServer();
 
@@ -184,7 +191,7 @@ public class BleAttendancePlugin extends Plugin {
                 .build();
 
             AdvertiseData data = new AdvertiseData.Builder()
-                .setIncludeDeviceName(false)
+                .setIncludeDeviceName(true)
                 .addServiceUuid(new ParcelUuid(SERVICE_UUID))
                 .build();
 
