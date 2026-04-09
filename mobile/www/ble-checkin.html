@@ -176,15 +176,18 @@
 
                 setStatus('Sent — waiting for response...', 'scanning');
 
-                // Wait briefly for professor to process, then read response
-                await new Promise(r => setTimeout(r, 1500));
-
+                // Poll for response — professor needs time to process and set response
+                const readChar = await service.getCharacteristic(BLE_CHAR_READ_UUID);
                 let response = '';
-                try {
-                    const readChar = await service.getCharacteristic(BLE_CHAR_READ_UUID);
-                    const value = await readChar.readValue();
-                    response = new TextDecoder().decode(value);
-                } catch (e) { /* read may fail, continue */ }
+                for (let attempt = 0; attempt < 5; attempt++) {
+                    await new Promise(r => setTimeout(r, 800));
+                    try {
+                        const value = await readChar.readValue();
+                        response = new TextDecoder().decode(value);
+                        // Check if response is a real result (starts with OK or ERROR)
+                        if (response.startsWith('OK|') || response.startsWith('ERROR|')) break;
+                    } catch (e) { /* retry */ }
+                }
 
                 // Disconnect
                 setTimeout(() => { if (server.connected) server.disconnect(); }, 500);
