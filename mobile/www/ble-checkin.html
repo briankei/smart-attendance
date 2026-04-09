@@ -184,8 +184,9 @@
                     try {
                         const value = await readChar.readValue();
                         response = new TextDecoder().decode(value);
-                        // Check if response is a real result (starts with OK or ERROR)
+                        // Check if response is a real result (not PENDING or stale)
                         if (response.startsWith('OK|') || response.startsWith('ERROR|')) break;
+                        response = ''; // reset if PENDING or stale
                     } catch (e) { /* retry */ }
                 }
 

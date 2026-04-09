@@ -556,6 +556,9 @@ public class BleAttendancePlugin extends Plugin {
         ) {
             try {
                 if (CHAR_WRITE_UUID.equals(characteristic.getUuid()) && value != null) {
+                    // Clear previous response so student doesn't read stale data
+                    lastBleResponse = "PENDING";
+
                     String studentNo = new String(value, StandardCharsets.UTF_8).trim();
                     String address = device != null ? device.getAddress() : "unknown";
                     Log.d(TAG, "Received student number: " + studentNo + " from " + address);
