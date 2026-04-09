@@ -13,6 +13,10 @@ import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.BluetoothLeAdvertiser;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -69,6 +73,9 @@ public class BleAttendancePlugin extends Plugin {
     private TextToSpeech tts;
     private boolean ttsReady = false;
     private volatile String lastBleResponse = "";
+    private final java.util.Map<String, Integer> deviceRssi = new java.util.concurrent.ConcurrentHashMap<>();
+    private BluetoothLeScanner bleScanner;
+    private boolean isScanning = false;
 
     @Override
     public void load() {
@@ -340,7 +347,15 @@ public class BleAttendancePlugin extends Plugin {
 
     @PluginMethod
     public void setResponse(PluginCall call) {
-        lastBleResponse = call.getString("response", "");
+        String response = call.getString("response", "");
+        String deviceAddr = call.getString("deviceAddress", "");
+        // Append distance info if available
+        Integer rssi = deviceRssi.get(deviceAddr);
+        if (rssi != null) {
+            double dist = rssiToDistance(rssi);
+            response += "|" + distanceLabel(dist);
+        }
+        lastBleResponse = response;
         Log.d(TAG, "BLE response set: " + lastBleResponse);
         call.resolve();
     }
@@ -416,6 +431,7 @@ public class BleAttendancePlugin extends Plugin {
     }
 
     private void stopAll() {
+        stopRssiScan();
         try {
             if (advertiser != null && isAdvertising) {
                 advertiser.stopAdvertising(advertiseCallback);
@@ -434,11 +450,62 @@ public class BleAttendancePlugin extends Plugin {
         isAdvertising = false;
     }
 
+    private void startRssiScan() {
+        try {
+            bleScanner = bluetoothAdapter.getBluetoothLeScanner();
+            if (bleScanner == null) return;
+            ScanSettings scanSettings = new ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+                .setReportDelay(0)
+                .build();
+            bleScanner.startScan(null, scanSettings, rssiScanCallback);
+            isScanning = true;
+            Log.d(TAG, "RSSI scan started");
+        } catch (Exception e) {
+            Log.w(TAG, "RSSI scan failed", e);
+        }
+    }
+
+    private void stopRssiScan() {
+        if (bleScanner != null && isScanning) {
+            try { bleScanner.stopScan(rssiScanCallback); } catch (Exception e) { /* ignore */ }
+            isScanning = false;
+        }
+    }
+
+    private final ScanCallback rssiScanCallback = new ScanCallback() {
+        @Override
+        public void onScanResult(int callbackType, ScanResult result) {
+            if (result != null && result.getDevice() != null) {
+                String address = result.getDevice().getAddress();
+                int rssi = result.getRssi();
+                deviceRssi.put(address, rssi);
+            }
+        }
+    };
+
+    private static double rssiToDistance(int rssi) {
+        // Path loss model: distance = 10 ^ ((txPower - rssi) / (10 * n))
+        // txPower: RSSI at 1 meter (typically -59 dBm)
+        // n: path loss exponent (2.0 for free space, 2.5-3.0 indoors)
+        int txPower = -59;
+        double n = 2.5;
+        return Math.pow(10.0, (txPower - rssi) / (10.0 * n));
+    }
+
+    private static String distanceLabel(double meters) {
+        if (meters < 1.5) return String.format("%.1fm (very close)", meters);
+        if (meters < 5) return String.format("%.1fm (nearby)", meters);
+        if (meters < 10) return String.format("%.1fm (medium)", meters);
+        return String.format("%.0fm (far)", meters);
+    }
+
     private final AdvertiseCallback advertiseCallback = new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             Log.d(TAG, "BLE advertising started successfully");
             isAdvertising = true;
+            startRssiScan();
             JSObject data = new JSObject();
             data.put("event", "advertiseOk");
             notifyListeners("bleEvent", data);
@@ -493,10 +560,19 @@ public class BleAttendancePlugin extends Plugin {
                     String address = device != null ? device.getAddress() : "unknown";
                     Log.d(TAG, "Received student number: " + studentNo + " from " + address);
 
+                    // Get RSSI and distance for this device
+                    Integer rssi = deviceRssi.get(address);
+                    int rssiVal = rssi != null ? rssi : -80;
+                    double distance = rssiToDistance(rssiVal);
+                    String distLabel = distanceLabel(distance);
+
                     JSObject data = new JSObject();
                     data.put("event", "checkin");
                     data.put("studentNo", studentNo);
                     data.put("deviceAddress", address);
+                    data.put("rssi", rssiVal);
+                    data.put("distance", Math.round(distance * 10.0) / 10.0);
+                    data.put("distanceLabel", distLabel);
                     data.put("timestamp", new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
                     notifyListeners("bleEvent", data);
 

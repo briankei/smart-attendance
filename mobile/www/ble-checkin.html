@@ -172,26 +172,29 @@
                 // Disconnect
                 setTimeout(() => { if (server.connected) server.disconnect(); }, 500);
 
-                // Parse response: "OK|Name|Message" or "ERROR|Message"
+                // Parse response: "OK|Name|Message|Distance" or "ERROR|Message|Distance"
                 const parts = response.split('|');
                 const status = parts[0] || '';
                 const respName = parts[1] || '';
                 const respMsg = parts[2] || '';
+                const respDist = parts[3] || '';
 
                 document.getElementById('formSection').classList.add('hidden');
                 document.getElementById('successSection').classList.remove('hidden');
+
+                const distHtml = respDist ? '<br><span style="font-size:0.8rem;color:#38bdf8">Distance: ' + respDist + '</span>' : '';
 
                 if (status === 'ERROR') {
                     document.getElementById('successSection').querySelector('.check-icon').textContent = '\u2717';
                     document.getElementById('successTitle').textContent = 'Failed';
                     document.getElementById('successTitle').style.color = '#dc2626';
-                    document.getElementById('successMsg').textContent = respName || 'Unknown error';
+                    document.getElementById('successMsg').innerHTML = (respName || 'Unknown error') + distHtml;
                     setStatus(respName || 'Check-in failed', 'error');
                 } else if (status === 'OK') {
                     document.getElementById('successSection').querySelector('.check-icon').textContent = '\u2713';
                     document.getElementById('successTitle').style.color = '#10b981';
                     document.getElementById('successTitle').textContent = respName || 'Success';
-                    document.getElementById('successMsg').textContent = respMsg || (action === 'register' ? 'Registered' : 'Attended');
+                    document.getElementById('successMsg').innerHTML = (respMsg || (action === 'register' ? 'Registered' : 'Attended')) + distHtml;
                     setStatus(respMsg || 'Success', 'success');
                 } else {
                     // No response or unknown format — assume success (backward compat)
