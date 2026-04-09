@@ -2611,7 +2611,7 @@ var qrcode = function() {
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v9.2</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v9.3</div>
         </div>
     </div>
 
@@ -3329,7 +3329,7 @@ var qrcode = function() {
                 return;
             }
             const backup = {
-                version: 'v9.2',
+                version: 'v9.3',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -5362,11 +5362,11 @@ var qrcode = function() {
             }
         }
 
-        function setBleResponse(response) {
+        function setBleResponse(response, deviceAddress) {
             if (isCapacitorNative()) {
                 try {
                     const { BleAttendance } = window.Capacitor.Plugins;
-                    BleAttendance.setResponse({ response: response });
+                    BleAttendance.setResponse({ response: response, deviceAddress: deviceAddress || '' });
                 } catch (e) { /* ignore */ }
             }
         }
@@ -5374,6 +5374,9 @@ var qrcode = function() {
         function processBleCheckin(data) {
             const rawPayload = data.studentNo || '';
             const deviceAddress = data.deviceAddress || '';
+            const rssi = data.rssi || 0;
+            const distLabel = data.distanceLabel || '';
+            const distInfo = distLabel ? ` [${distLabel}]` : '';
             const devices = loadBleDevices();
             const log = document.getElementById('bleCheckinLog');
 
@@ -5415,12 +5418,12 @@ var qrcode = function() {
                     }
                     playBeep();
                     speakName(matchByNo.name);
-                    setBleResponse('OK|' + matchByNo.name + '|Registered and attended');
-                    log.innerHTML = `<div style="color:#f59e0b">${escapeHTML(matchByNo.name)} registered + attended &#10003; ${escapeHTML(deviceAddress)}</div>` + log.innerHTML;
+                    setBleResponse('OK|' + matchByNo.name + '|Registered and attended', deviceAddress);
+                    log.innerHTML = `<div style="color:#f59e0b">${escapeHTML(matchByNo.name)} registered &#10003;${distInfo}</div>` + log.innerHTML;
                 } else {
                     playBoo();
-                    setBleResponse('ERROR|Student number ' + studentNo + ' not found');
-                    log.innerHTML = `<div style="color:#dc2626">Unknown student: ${escapeHTML(studentNo)}</div>` + log.innerHTML;
+                    setBleResponse('ERROR|Student number ' + studentNo + ' not found', deviceAddress);
+                    log.innerHTML = `<div style="color:#dc2626">Unknown: ${escapeHTML(studentNo)}${distInfo}</div>` + log.innerHTML;
                 }
             } else {
                 const match = matchByDevice || matchByNo;
@@ -5436,19 +5439,19 @@ var qrcode = function() {
                     bleCheckinTotal++;
                     playBeep();
                     speakName(match.name);
-                    setBleResponse('OK|' + match.name + '|Attendance recorded');
+                    setBleResponse('OK|' + match.name + '|Attendance recorded', deviceAddress);
                     renderList(match.id, 'attend-highlight');
                     scrollToRow(match.id);
-                    log.innerHTML = `<div style="color:#10b981">${escapeHTML(match.name)} &#10003; ${escapeHTML(deviceAddress)}</div>` + log.innerHTML;
+                    log.innerHTML = `<div style="color:#10b981">${escapeHTML(match.name)} &#10003;${distInfo}</div>` + log.innerHTML;
                     document.getElementById('bleCheckinCount').textContent =
                         `${bleCheckinTotal} student${bleCheckinTotal !== 1 ? 's' : ''} checked in`;
                 } else if (match && hasAttendedToday(match)) {
-                    setBleResponse('OK|' + match.name + '|Already attended today');
-                    log.innerHTML = `<div style="color:#64748b">${escapeHTML(match.name)} (already attended)</div>` + log.innerHTML;
+                    setBleResponse('OK|' + match.name + '|Already attended today', deviceAddress);
+                    log.innerHTML = `<div style="color:#64748b">${escapeHTML(match.name)} (already)${distInfo}</div>` + log.innerHTML;
                 } else {
                     playBoo();
-                    setBleResponse('ERROR|Student number ' + studentNo + ' not found');
-                    log.innerHTML = `<div style="color:#dc2626">Unknown: ${escapeHTML(studentNo || deviceAddress)}</div>` + log.innerHTML;
+                    setBleResponse('ERROR|Student number ' + studentNo + ' not found', deviceAddress);
+                    log.innerHTML = `<div style="color:#dc2626">Unknown: ${escapeHTML(studentNo || deviceAddress)}${distInfo}</div>` + log.innerHTML;
                 }
             }
         }
