@@ -72,7 +72,7 @@ public class BleAttendancePlugin extends Plugin {
     private PluginCall pendingCall = null;
     private TextToSpeech tts;
     private boolean ttsReady = false;
-    private volatile String lastBleResponse = "";
+    private final java.util.Map<String, String> bleResponseMap = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Map<String, Integer> deviceRssi = new java.util.concurrent.ConcurrentHashMap<>();
     private BluetoothLeScanner bleScanner;
     private boolean isScanning = false;
@@ -355,8 +355,10 @@ public class BleAttendancePlugin extends Plugin {
             double dist = rssiToDistance(rssi);
             response += "|" + distanceLabel(dist);
         }
-        lastBleResponse = response;
-        Log.d(TAG, "BLE response set: " + lastBleResponse);
+        if (!deviceAddr.isEmpty()) {
+            bleResponseMap.put(deviceAddr, response);
+        }
+        Log.d(TAG, "BLE response set for " + deviceAddr + ": " + response);
         call.resolve();
     }
 
@@ -556,11 +558,10 @@ public class BleAttendancePlugin extends Plugin {
         ) {
             try {
                 if (CHAR_WRITE_UUID.equals(characteristic.getUuid()) && value != null) {
-                    // Clear previous response so student doesn't read stale data
-                    lastBleResponse = "PENDING";
-
                     String studentNo = new String(value, StandardCharsets.UTF_8).trim();
                     String address = device != null ? device.getAddress() : "unknown";
+                    // Clear previous response per device so student doesn't read stale data
+                    bleResponseMap.put(address, "PENDING");
                     Log.d(TAG, "Received student number: " + studentNo + " from " + address);
 
                     // Get RSSI and distance for this device
@@ -599,8 +600,10 @@ public class BleAttendancePlugin extends Plugin {
         ) {
             try {
                 if (CHAR_READ_UUID.equals(characteristic.getUuid()) && gattServer != null) {
-                    // Return last response (set by JS after processing check-in)
-                    String responseStr = lastBleResponse.isEmpty() ? courseInfo : lastBleResponse;
+                    // Return per-device response (set by JS after processing check-in)
+                    String deviceAddr = device != null ? device.getAddress() : "";
+                    String deviceResponse = bleResponseMap.get(deviceAddr);
+                    String responseStr = (deviceResponse != null && !deviceResponse.isEmpty()) ? deviceResponse : courseInfo;
                     byte[] response = responseStr.getBytes(StandardCharsets.UTF_8);
                     byte[] slice = offset < response.length ? Arrays.copyOfRange(response, offset, response.length) : new byte[0];
                     gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, slice);
