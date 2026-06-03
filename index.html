@@ -2591,6 +2591,7 @@ var qrcode = function() {
             <div class="menu-item" onclick="shareCSV();closeMenu()"><span class="mi-icon">&#128228;</span> Share CSV</div>
             <div class="menu-item" onclick="closeMenu();createCourseUI()"><span class="mi-icon">&#128221;</span> Create Course</div>
             <div class="menu-item" onclick="closeMenu();document.getElementById('uploadFile').click()"><span class="mi-icon">&#128228;</span> Upload Student List</div>
+            <div class="menu-item" onclick="closeMenu();document.getElementById('reviseFile').click()"><span class="mi-icon">&#128260;</span> Revise Roster (keep NFC)</div>
             <div class="menu-item" onclick="closeMenu();requireAuth('Backup All Data',()=>backupData())"><span class="mi-icon">&#128190;</span> Backup All Data</div>
             <div class="menu-item" onclick="closeMenu();document.getElementById('restoreFile').click()"><span class="mi-icon">&#128194;</span> Restore Backup</div>
             <div class="menu-item" onclick="installPWA();closeMenu()"><span class="mi-icon">&#128241;</span> Install App (PWA)</div>
@@ -2611,7 +2612,7 @@ var qrcode = function() {
         <button class="burger-btn" onclick="openMenu()">&#9776;</button>
         <div style="text-align:center">
             <h1 id="appTitle" style="margin:0">NFC/Code Smart Attendance PWA <span id="modeIndicator" style="font-size:0.6rem;padding:3px 8px;border-radius:10px;color:#fff;vertical-align:middle"></span></h1>
-            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v9.3</div>
+            <div style="font-size:0.65rem;color:#e2e8f0;margin-top:2px">v9.5</div>
         </div>
     </div>
 
@@ -2627,6 +2628,7 @@ var qrcode = function() {
         <button class="top-btn" id="btnBLE" onclick="toggleBleAttend()" style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff">BLE Attend</button>
     </div>
     <input type="file" id="uploadFile" accept=".txt,.csv,.text" class="hidden">
+    <input type="file" id="reviseFile" accept=".txt,.csv,.text" class="hidden">
     <input type="file" id="restoreFile" accept=".json" class="hidden">
 
     <div id="attendanceSummary" class="summary-bar"></div>
@@ -2977,7 +2979,7 @@ var qrcode = function() {
     <div class="modal-overlay" id="mismatchModal">
         <div class="modal">
             <h3>Card Not Recognized</h3>
-            <p id="mismatchMsg">This card has failed to match 3 times. Would you like to re-register it to a student?</p>
+            <p id="mismatchMsg">This card is not registered. Would you like to re-register it to a student?</p>
             <button class="modal-btn modal-cancel" onclick="closeMismatchModal()">Cancel</button>
             <button class="modal-btn modal-confirm" onclick="mismatchReregister()">Re-register</button>
         </div>
@@ -3050,7 +3052,6 @@ var qrcode = function() {
         let serverMode = false;
         let deleteCourseTarget = null;
         let attendMode = 'nfc'; // 'nfc' or 'qr' — set by Attend NFC / Attend Code buttons
-        let nfcMismatchCounts = {}; // tracks per-serial mismatch counts during attend mode
         let mismatchSerial = null; // serial that triggered the re-register prompt
 
         // Settings (persisted in localStorage)
@@ -3331,7 +3332,7 @@ var qrcode = function() {
                 return;
             }
             const backup = {
-                version: 'v9.3',
+                version: 'v9.5',
                 timestamp: new Date().toISOString(),
                 courses: courses,
                 professor: professorGlobal,
@@ -3957,6 +3958,51 @@ var qrcode = function() {
             await loadActiveCourse();
         }
 
+        // ---- Revise roster (update an existing course, preserving registered NFC codes) ----
+        // Matches by student number first (robust to name corrections), then falls back to name.
+        // Matched students keep their nfcSerial, consent and attendance timestamps; unmatched
+        // existing students are removed; students new to the list are added with no NFC.
+        async function reviseRoster(parsed) {
+            const key = getCourseKey(parsed.title);
+            const existing = courses[key];
+            if (!existing) {
+                return { ok: false, error: `No existing course named "${parsed.title}". Use "Upload Student List" to create it first.` };
+            }
+            // Build lookup tables of the current students.
+            const byNo = {}, byName = {};
+            existing.students.forEach(s => {
+                if (s.studentNo) byNo[String(s.studentNo).trim()] = s;
+                if (s.name) byName[s.name.trim().toLowerCase()] = s;
+            });
+            const used = new Set(); // existing students that survive the revision
+            let kept = 0, added = 0;
+            const revised = parsed.students.map(st => {
+                const no = String(st.studentNo || '').trim();
+                let match = (no && byNo[no]) ? byNo[no] : (st.name ? byName[st.name.trim().toLowerCase()] : null);
+                if (match && !used.has(match)) {
+                    used.add(match);
+                    kept++;
+                    match.name = st.name || match.name;          // adopt corrected name
+                    if (st.studentNo) match.studentNo = st.studentNo;
+                    match.last4 = st.last4 || match.last4 || '';
+                    // Preserve registered NFC code; only adopt a file-supplied one if none exists.
+                    if (!match.nfcSerial && st.nfcSerial) { match.nfcSerial = st.nfcSerial; match.consented = true; }
+                    if (st.consentedAt && !match.consentedAt) match.consentedAt = st.consentedAt;
+                    return match;
+                }
+                added++;
+                return { name: st.name, nfcSerial: st.nfcSerial || '', studentNo: st.studentNo || '', last4: st.last4 || '', consented: st.consented || false, consentedAt: st.consentedAt || '', timestamps: [] };
+            });
+            const removed = existing.students.length - used.size;
+            existing.students = revised;
+            existing.professor = parsed.professor || existing.professor;
+            existing.title = parsed.title;
+            activeCourse = key;
+            saveCourses();
+            await loadActiveCourse();
+            return { ok: true, kept, added, removed, title: parsed.title };
+        }
+
         // ---- Render ----
         function getTodayStr() { return new Date().toLocaleDateString('en-CA'); }
         function hasAttendedToday(s) { const today = getTodayStr(); return s.timestamps.some(ts => ts.startsWith(today)); }
@@ -4179,23 +4225,15 @@ var qrcode = function() {
                     setStatus(`${found.name} — attendance recorded. Next student...`, 'success');
                     renderList(found.id, 'attend-highlight');
                     scrollToRow(found.id);
-                    // Reset mismatch count for this serial on successful match
-                    delete nfcMismatchCounts[serial];
                 } else {
-                    // Track mismatch count per serial
-                    nfcMismatchCounts[serial] = (nfcMismatchCounts[serial] || 0) + 1;
+                    // Unregistered card — offer re-registration immediately (available at all times)
                     playBoo();
-                    if (nfcMismatchCounts[serial] >= 3) {
-                        mismatchSerial = serial;
-                        stopScan();
-                        setStatus(`Card failed to match 3 times — re-register?`, 'error');
-                        document.getElementById('mismatchMsg').textContent =
-                            `This card (…${serial.slice(-8)}) has failed to match 3 times. Re-register it to a student and record attendance?`;
-                        document.getElementById('mismatchModal').classList.add('active');
-                        nfcMismatchCounts[serial] = 0;
-                    } else {
-                        setStatus(`Card not registered (attempt ${nfcMismatchCounts[serial]}/3) — scanning continues...`, 'error');
-                    }
+                    mismatchSerial = serial;
+                    stopScan();
+                    setStatus(`Card not registered — re-register?`, 'error');
+                    document.getElementById('mismatchMsg').textContent =
+                        `This card (…${serial.slice(-8)}) is not registered. Re-register it to a student and record attendance?`;
+                    document.getElementById('mismatchModal').classList.add('active');
                 }
 
             } else if (currentMode === 'manual') {
@@ -5779,6 +5817,42 @@ var qrcode = function() {
                     updateProfStatus();
                     playBeep();
                     setStatus(`Loaded "${parsed.title}" with ${parsed.studentNames.length} students`, 'success');
+                });
+            };
+            fr.readAsText(file);
+        });
+
+        // ---- Revise roster handler ----
+        document.getElementById('reviseFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const fr = new FileReader();
+            fr.onload = function(ev) {
+                const fileContent = ev.target.result;
+                e.target.value = '';
+                requireAuth('Revise Roster', async () => {
+                    const parsed = parseStudentFile(fileContent);
+                    if (!parsed) {
+                        setStatus('Invalid file. Need: line 1 = subject title, line 2 = professor, rest = students', 'error');
+                        playBoo();
+                        return;
+                    }
+                    const key = getCourseKey(parsed.title);
+                    if (!courses[key]) {
+                        setStatus(`No existing course "${parsed.title}". Use "Upload Student List" to create it first.`, 'error');
+                        playBoo();
+                        return;
+                    }
+                    if (!confirm(`Revise roster for "${courses[key].title}"?\n\nMatched students keep their registered NFC and attendance. Students missing from this list will be REMOVED. New students will be added.`)) return;
+                    const r = await reviseRoster(parsed);
+                    if (!r.ok) { setStatus(r.error, 'error'); playBoo(); return; }
+                    professorGlobal.name = parsed.professor;
+                    saveProfessor();
+                    updateTitle();
+                    renderAll();
+                    updateProfStatus();
+                    playBeep();
+                    setStatus(`Revised "${r.title}": ${r.kept} kept, ${r.added} added, ${r.removed} removed`, 'success');
                 });
             };
             fr.readAsText(file);
